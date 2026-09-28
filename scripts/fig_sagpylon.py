@@ -88,7 +88,8 @@ def main():
     a2.set_xlabel(r"law with sag  $\varepsilon$  (%)")
     a2.set_ylabel(r"sagged model  $\varepsilon$  (%)")
     F.clean(a2)
-    a2.legend(loc="upper left", fontsize=9.3, labelspacing=0.2, frameon=False, handletextpad=0.3)
+    a2.legend(loc="upper left", bbox_to_anchor=(-0.04, 1.02), borderaxespad=0.2, fontsize=9.3,
+              labelspacing=0.2, frameon=False, handletextpad=0.3, handlelength=1.2)
     F.panel(a2, "b", "the sagged design set")
 
     # --- (c) pylon ---
