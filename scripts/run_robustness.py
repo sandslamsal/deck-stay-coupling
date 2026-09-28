@@ -236,11 +236,12 @@ def census(d):
 
     # cross-check: the campaign ran seeds 0..11999 in order and kept the
     # non-None rows, so the census's usable rows for seeds 0..N_CENSUS-1
-    # must reproduce the first n_usable rows of campaign.csv exactly
+    # must reproduce the first n_usable rows of campaign.csv (to rounding:
+    # different numpy/scipy builds differ at about 1e-8)
     head = d.head(n_usable)
     cen = pd.DataFrame(usable_rows)
     cols = ["Ld", "Lc", "T", "f_deck", "f_coupled", "eps", "eps_control"]
-    match = all(np.allclose(head[c].values, cen[c].values, rtol=1e-12)
+    match = all(np.allclose(head[c].values, cen[c].values, rtol=1e-6)
                 for c in cols)
     print(f"    cross-check: census usable rows reproduce the first "
           f"{n_usable} rows of campaign.csv on {cols}: "
