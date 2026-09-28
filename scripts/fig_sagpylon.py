@@ -68,14 +68,23 @@ def main():
             (r"odd, $r_n < 0.3$", g[(g.n_stay % 2 == 1) & (g.r_n < 0.3)], "n1"),
             (r"odd, $0.3 \leq r_n < 3$", g[(g.n_stay % 2 == 1) & (g.r_n >= 0.3) & (g.r_n < 3)], "n3"),
             (r"odd, $r_n \geq 3$", g[(g.n_stay % 2 == 1) & (g.r_n >= 3)], "n5"))
-    lim = 6.0
-    a2.plot([0, lim], [0, lim], color=F.GRAY, lw=0.9, zorder=0)
+    # log axes: the errors span four decades, and no point is clipped
+    lo, hi = 1e-3, 30.0
+    a2.plot([lo, hi], [lo, hi], color=F.GRAY, lw=0.9, zorder=0)
     for lab, sub, key in bins:
-        a2.plot(sub.x.clip(upper=lim), sub.y.clip(upper=lim), ls="none",
+        a2.plot(sub.x.clip(lower=lo), sub.y.clip(lower=lo), ls="none",
                 **{k: v for k, v in F.style(key, label=False).items() if k in ("color", "marker")},
                 ms=4.0, mfc="none", mew=0.9, label=lab)
-    a2.set_xlim(0, lim)
-    a2.set_ylim(0, lim)
+    a2.set_xscale("log")
+    a2.set_yscale("log")
+    a2.set_xlim(lo, hi)
+    a2.set_ylim(lo, hi)
+    ticks = [0.001, 0.01, 0.1, 1, 10]
+    labels = ["0.001", "0.01", "0.1", "1", "10"]
+    for ax_set, lab_set in ((a2.set_xticks, a2.set_xticklabels), (a2.set_yticks, a2.set_yticklabels)):
+        ax_set(ticks)
+        lab_set(labels)
+    a2.minorticks_off()
     a2.set_xlabel(r"law with sag  $\varepsilon$  (%)")
     a2.set_ylabel(r"sagged model  $\varepsilon$  (%)")
     F.clean(a2)

@@ -92,7 +92,7 @@ def main():
              label="closed form",
              **F.style('law', marker='none', lw=1.8, label=False))
     ax3.set_xlabel(r"relative detuning $d$")
-    ax3.set_ylabel(r"tension error  (%)")
+    ax3.set_ylabel(r"tension error  $|\varepsilon|$  (%)")
     F.headroom(ax3, top=0.30)          # keep the legend clear of the peak
     F.clean(ax3)
     ax3.set_xticks([-0.2, -0.1, 0.0, 0.1])

@@ -29,7 +29,7 @@ OUT = os.environ.get("FIGURE_DIR", os.path.join(ROOT, "figures"))
 
 EST = {
     "string_n1": dict(key="incumbent", label="taut string, order 1"),
-    "multi_iso": dict(key="n3", label="multi-mode fit, isolated"),
+    "multi_iso": dict(key="n3", label=r"multi-mode fit, $V(L_c)=0$"),
     "shapefit": dict(key="law", label="shape fit"),
     "pinn_free": dict(key="model", label="network, free end"),
 }
@@ -46,7 +46,7 @@ def main():
     # ---- (a) noise-free error through the crossing -----------------------
     nf = main9[main9.rep < 0]
     for est, spec in EST.items():
-        g = nf[nf.estimator == est].groupby("T_true").err_pct.mean()
+        g = nf[nf.estimator == est].groupby("T_true").err_pct.median()  # median over initializations
         ax1.plot(g.index / 1e3, g.values, label=spec["label"],
                  **F.style(spec["key"], lw=1.7, ms=4.0, label=False))
     hn = heavy[(heavy.rep < 0) & (heavy.estimator == "string_n1")]
@@ -54,8 +54,8 @@ def main():
     ax1.set_xlabel(r"stay tension  $T$  (kN)")
     ax1.set_ylabel(r"tension error  $\varepsilon$  (%)")
     F.clean(ax1)
-    F.headroom(ax1, top=0.34)
-    ax1.legend(loc="upper right", fontsize=F.FS_SMALL, labelspacing=0.22,
+    F.headroom(ax1, top=0.62)
+    ax1.legend(loc="upper right", fontsize=9.6, labelspacing=0.22,
                borderaxespad=0.15)
     F.panel(ax1, "a", "noise-free records")
 
@@ -87,7 +87,7 @@ def main():
     ax2.set_xlabel("shape noise, % of peak amplitude")
     ax2.set_ylabel("tension RMSE  (%)")
     F.clean(ax2)
-    ax2.legend(loc="upper left", fontsize=F.FS_SMALL, labelspacing=0.22,
+    ax2.legend(loc="upper left", fontsize=9.6, labelspacing=0.22,
                borderaxespad=0.15)
     F.panel(ax2, "b", "under measurement noise")
 

@@ -62,7 +62,7 @@ def main():
     a1.set_xticks([], minor=True)
     a1.set_xlim(0.1, 10.0)
     a1.set_xlabel(r"$u = s/2\zeta$")
-    a1.set_ylabel(r"$k = |x_*|/u$")
+    a1.set_ylabel(r"$\chi = |x_*|/u$")
     a1.set_ylim(-0.05, 1.30)
     F.clean(a1)
     a1.legend(loc="lower right", fontsize=9.0, labelspacing=0.22, frameon=False)
@@ -74,11 +74,13 @@ def main():
     b = m[m.zeta == m.zeta.min()]
     a2.plot(b.T_true / 1e3, b.eps_branch_pct, label="branch, resolved",
             **F.style("law", marker="none", lw=1.9, label=False))
-    for z, key in ((0.005, "n3"), (0.01, "n2"), (0.02, "incumbent")):
+    # distinct line styles so the three damping ratios read in grayscale
+    for z, key, ls in ((0.005, "n3", (0, (5, 2))), (0.01, "n2", (0, (1, 1.5))),
+                       (0.02, "incumbent", (0, (6, 2, 1, 2)))):
         g = m[np.isclose(m.zeta, z)]
         a2.plot(g.T_true / 1e3, g.eps_merged_pct,
                 label=rf"merged, $\zeta = {100*z:g}\,\%$",
-                **F.style(key, marker="none", lw=1.9, label=False))
+                **{**F.style(key, marker="none", lw=1.9, label=False), "ls": ls})
     a2.axhline(0, color=F.GRAY, lw=0.9, zorder=0)
     a2.set_xlabel(r"stay tension  $T$  (kN)")
     a2.set_ylabel(r"tension error  $\varepsilon$  (%)")

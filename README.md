@@ -36,6 +36,7 @@ modal analysis take about an hour each; everything else runs in minutes.
 | Result | Script | Output |
 |---|---|---|
 | Model verification, Table 1 | `verify_cablefe.py`, `verify_coupling.py`, `cross_check_opensees.py`, `verify_cablefe2d.py` | printed, `verify_cablefe2d.csv` |
+| Closed-form width against the exact coupled roots, orders 1 to 6 | `verify_split_orders.py` | `verify_split_orders.csv` |
 | Veering of the frequency loci, Fig. 2 | `run_veering.py`, `fig_veering.py` | `veering_loci.csv`, `veering_branches.csv` |
 | Second (sag) route and pylon flexibility, Fig. 3 | `run_sag.py`, `run_campaign_sag.py`, `run_pylon.py`, `fig_sagpylon.py` | `sag*.csv`, `campaign_sag.csv`, `pylon.csv` |
 | Mass ratio of footbridges against long-span bridges | `run_pilot.py` | `pilot_census.csv`, `pilot_detuning.csv` |
