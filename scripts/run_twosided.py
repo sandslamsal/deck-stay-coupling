@@ -1,37 +1,12 @@
 # -*- coding: utf-8 -*-
 """Two-sided branch mis-assignment across the stay-1 / deck crossing.
 
-The identification campaigns (run_identify.py, run_identify2.py) always
-MAC-match the stay-dominated branch, which grants the analyst an oracle the
-field does not have.  Near an avoided crossing BOTH hybrid branches carry
-stay motion, both raise peaks on a stay-mounted accelerometer, and nothing
-in the record says which one is "the" stay mode.  This study quantifies the
-two-sided consequence: for each tension it finds both branches of the
-avoided crossing near stay mode 1, applies the taut-string inversion
-(order 1) to each, and records both errors, plus the stay-energy fraction
-of each branch so the genuinely ambiguous zone can be delimited.
-
-Branch definition, deliberately oracle-free in spirit but exact in
-mechanics: among the coupled modes within ``WINDOW`` of the isolated stay
-frequency ``f_iso``, the two with the largest stay-energy fraction
-(``CableDeck.energy_split``), ordered by frequency into a lower and an
-upper branch.  On this bridge the window contains exactly one deck-rooted
-and one stay-rooted locus (nearest other deck modes sit near 1.4 and
-5.6 Hz), so the pair is the avoided-crossing pair by construction.
-
-Tensions: the nine campaign tensions of run_identify2.py plus twenty
-closely spanning the crossing (145-160 kN).  The ambiguous-zone edges,
-where the weaker branch still holds ``AMBIG`` of the modal kinetic energy,
-are refined by bisection rather than read off the grid.
-
-Writes data/twosided.csv with columns
-    T_true, f_upper, f_lower, stayfrac_upper, stayfrac_lower,
-    err_upper_pct, err_lower_pct
-and prints the report: worst error on the stay-dominated branch, worst
-error when the other branch is picked, and the ambiguous window in tension
-and in relative detuning.
-
-Run:  python3 scripts/run_twosided.py
+For each tension, takes both branches of the avoided crossing near stay mode 1
+(the two coupled modes with the largest stay-energy fraction within WINDOW of
+f_iso), applies the order-1 taut-string inversion to each, and reports both
+errors and the tension window in which both branches hold more than AMBIG of
+the stay energy. Writes data/twosided.csv.
+Run: python3 scripts/run_twosided.py
 """
 
 from __future__ import annotations
@@ -56,7 +31,7 @@ DATA = os.path.join(ROOT, "data")
 
 WINDOW = 0.30            # search half-width around f_iso, relative
 AMBIG = 0.20             # stay-energy fraction defining ambiguity
-EXTRA = np.linspace(145e3, 160e3, 20)
+EXTRA = np.linspace(145e3, 160e3, 20)   # tensions spanning the crossing
 
 
 def branch_pair(T, bridge=BRIDGE, window=WINDOW):
@@ -90,7 +65,7 @@ def err_pct(f1, T_true, bridge=BRIDGE):
 
 
 def deck_mode_near(f_target, bridge=BRIDGE):
-    """Deck-alone frequency nearest ``f_target`` and its mass-normalised
+    """Deck-alone frequency nearest ``f_target`` and its mass-normalized
     amplitude at the anchorage.  ``k_ax`` does not depend on T."""
     cd = CableDeck(T=150e3, **bridge)
     Kd, Md = chain(bridge["Ld"], bridge["nd"], bridge["EId"],
@@ -101,7 +76,7 @@ def deck_mode_near(f_target, bridge=BRIDGE):
     w2, V = eigh(Kd[np.ix_(keep, keep)], Md[np.ix_(keep, keep)])
     fd = np.sqrt(np.maximum(w2, 0.0)) / (2.0 * np.pi)
     j = int(np.argmin(np.abs(fd - f_target)))
-    phi_a = abs(V[keep.index(2 * cd.ia), j])    # eigh mass-normalises
+    phi_a = abs(V[keep.index(2 * cd.ia), j])    # eigh mass-normalizes
     return float(fd[j]), float(phi_a)
 
 
@@ -143,7 +118,7 @@ def main():
     d.to_csv(out, index=False)
     print(f"wrote {out}  ({len(d)} tensions)")
 
-    # ---- branch the oracle picks vs the other one -----------------------
+    # ---- stay-dominated branch vs the other one --------------------------
     dom_up = d.stayfrac_upper.values >= d.stayfrac_lower.values
     err_dom = np.where(dom_up, d.err_upper_pct.values, d.err_lower_pct.values)
     err_oth = np.where(dom_up, d.err_lower_pct.values, d.err_upper_pct.values)

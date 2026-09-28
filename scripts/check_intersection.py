@@ -1,42 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Audit of a critic's quantitative charge against the field evidence.
+"""Near-crossing stays against the field records of Ponte del Mare and Aveiro.
 
-The charge, in full:
-
-  "Look at which stays carry independent tensions: N8E, N7E, N5E, N4W -- and
-   check their predicted coupling bias.  N7E is at 0.4% detuning but
-   mu_eff <= 6e-5, so epsilon ~ 0.2%.  N8E is detuned 13% with kappa <= 0.10.
-   All four are stays where your own theory predicts a negligible bias, and
-   the table's residuals are 2.5-8%.  You have no stay that is both near a
-   crossing and independently tensioned -- the validation table and the
-   coupling demonstration don't intersect on a single cable.  The measurement
-   floor on that record is an order of magnitude above the effect you're
-   trying to detect there."
-
-Nothing in the study is modified.  Every number below is recomputed with the
-study's own closed forms in src/cablefe.py:
-
-    mu_eff = M_s phi_a^2                       cablefe.mu_effective
-    s      = (2 / (n pi)) cos(theta) sqrt(mu)  cablefe.veering_split
-    eps    = sqrt(d^2 + s^2) - |d|             cablefe.tension_error
-
-Sources, all Kumar (2011), PhD thesis, University of Trento:
-  Table 4.4  (PDF p.104): four instrumented stays, five picked orders each
-  Table 5.5  (PDF p.149): the SISTRAL sheet -- ALL THIRTY stays, each with a
-                          measured frequency and the pull inferred from it.
-                          The sheet's own banner reads "RILIEVO TIRO EFFETTIVO
-                          NELLE FUNI CON METODO ACCELEROMETRICO", and the body
-                          text (PDF p.147-148) states the pull was obtained by
-                          exciting each cable with a mechanical impulse and
-                          inverting the taut-string formula.  Section 1 below
-                          verifies this arithmetically on all thirty rows.
-  Table 5.6  (PDF p.153): twelve identified global modes, EMA column
-  Figure 4.14 (PDF p.98): vertical mode shapes of both decks, FTD and CTD
-  Figure 4.18 (PDF p.103): plan location of the four instrumented stays
-
-Aveiro: Rebelo, Julio, Varum, Costa, Experimental Techniques 34(4) 62-68,
-2010, Tables 1 and 3.
-
+Checks whether any stay with a tabulated reference tension also sits near a
+crossing with an identified global mode, and bounds the bias the closed forms
+of src/cablefe.py (mu_effective, veering_split, tension_error) predict there.
+Sources: Kumar (2011), PhD thesis, University of Trento, Tables 4.4, 5.5, 5.6
+and Figures 4.14, 4.18; Rebelo et al. (2010), Experimental Techniques 34(4)
+62-68, Tables 1 and 3. Writes data/intersection*.csv (three files).
 Run:  python3 scripts/check_intersection.py
 """
 
@@ -57,24 +27,24 @@ from cablefe import mu_effective, veering_split, tension_error   # noqa: E402
 DATA = os.path.join(ROOT, "data")
 OUT = os.path.join(DATA, "intersection.csv")
 
-NEAR = 0.05          # the study's own "near a crossing" threshold
+NEAR = 0.05          # |d| below which a stay mode is near a crossing
 G = 9.80665
 
 
-# ===========================================================================
-# 1. the record
-# ===========================================================================
+# === 1. the record ===========================================================
 
-# ---- Table 5.6, EMA column: the twelve identified global modes ------------
+# ---- Kumar (2011) Table 5.6, EMA column: twelve global modes (Hz) ---------
 DECK = np.array([0.747, 1.065, 1.126, 1.243, 1.394, 1.510,
                  1.716, 1.791, 2.306, 2.364, 2.512, 2.862])
 DECK_TOP = DECK.max()
 
-# ---- Table 5.5, the SISTRAL sheet, transcribed from the scanned table -----
-# name, diameter mm, mass kg/m, length at cable temperature m,
+# ---- Kumar (2011) Table 5.5, the SISTRAL sheet ------------------------------
+# SISTRAL rows: name, diameter mm, mass kg/m, length at cable temperature m,
 # measured frequency Hz, pull inferred kN, design pull kN
-# Values transcribed from Kumar (2011), PhD thesis, University of Trento (Ponte del Mare footbridge); Rebelo et al. (2009) (Aveiro footbridge). They are not redistributed with
-# this code: they live in data/external/check_intersection_data.py (see README).
+# Values transcribed from Kumar (2011), PhD thesis, University of Trento
+# (Ponte del Mare footbridge), and Rebelo et al. (2009) (Aveiro footbridge).
+# They are not redistributed with this code: they live in
+# data/external/check_intersection_data.py (see README).
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), "data", "external"))
 try:
@@ -85,44 +55,38 @@ except ImportError as exc:
                      "Kumar (2011), PhD thesis, University of Trento (Ponte del Mare footbridge); Rebelo et al. (2009) (Aveiro footbridge), which are not redistributed here. "
                      "See README, 'Third-party data'.") from exc
 
-# ---- Table 4.4, the four instrumented stays -------------------------------
+# ---- Kumar (2011) Table 4.4, the four instrumented stays (STAYS) -----------
 # SISTRAL calls them NE8/NE7/NE5/NW4; Table 4.4 calls them N8E/N7E/N5E/N4W.
 
-# ---- deck modal mass band carried through the study's field section -------
+# ---- deck modal mass band ---------------------------------------------------
 M_DECK_LO, M_DECK_HI = 40e3, 160e3       # kg, single-deck modes
-# the low end is used for every mu_eff upper bound below, which is the
-# most generous choice available to the coupling hypothesis.
+# the low end gives every mu_eff upper bound below (largest coupling)
 
-# ---- anchorage ordinates of Figure 4.14, |phi| normalised to unit maximum --
-# provenance is recorded per entry:
-#   "study"  band carried in scripts/validate_pontedelmare2.py and the paper
-#   "read"   read here off the same figure, in the sensor window nearest the
-#            anchorage.  The four anchorages sit at roughly -77, -71, -51 and
-#            -41 m on the Figure 4.14 abscissa (Section 2 fits that geometry);
-#            the outermost sensor is at -68 m, so for N8E and N7E the window
-#            read is an OVER-estimate: the true anchorage lies further out,
-#            where every mode ordinate is falling towards the end support.
-# a second read of global mode 3 at N7E, taken here, is wider than the band
-# the paper carries; both are reported.
+# ---- anchorage ordinates (ORDINATE), Kumar (2011) Figure 4.14 --------------
+# |phi| normalized to unit maximum; provenance per entry:
+#   "study"  band used in scripts/validate_pontedelmare2.py
+#   "read"   read off the same figure in the sensor window nearest the
+#            anchorage. The anchorages sit near -77, -71, -51 and -41 m and
+#            the outermost sensor is at -68 m, so for N8E and N7E the read
+#            is an upper bound.
+# a second, wider read of global mode 3 at N7E; both are reported.
 ORDINATE_ALT = {("N7E", 3): (0.03, 0.15, "read")}
 
-# ---- tabulated residuals of Table 5 of the manuscript ---------------------
-# T from orders 2-5 against the SISTRAL pull, per cent
+# ---- tabulated residuals of the validation table, per cent ----------------
+# RESIDUAL_HI: T from orders 2-5 against the SISTRAL pull; RESIDUAL_F1: order 1
 RESIDUAL_HI = {"N8E": 4.2, "N7E": 7.6, "N5E": 6.7, "N4W": 3.9}
 RESIDUAL_F1 = {"N8E": 33.7, "N7E": 12.9, "N5E": 6.7, "N4W": 18.2}
 
 # ---- damping ---------------------------------------------------------------
-ZETA_LO, ZETA_HI = 0.002, 0.010   # band the study's campaign measures
-DIP_ANY, DIP_3DB = 0.9717, 2.280  # coefficients of the resolvability law
+ZETA_LO, ZETA_HI = 0.002, 0.010   # damping ratio band of the campaign
+DIP_ANY, DIP_3DB = 0.9717, 2.280  # s / zeta for any dip and for a 3 dB dip
 
 
 def line(c="=", n=86):
     print(c * n)
 
 
-# ===========================================================================
-# section 1: is the "independent" tension independent?
-# ===========================================================================
+# === section 1: is the "independent" tension independent? ====================
 
 def string_f1(T_N, L, m):
     return 0.5 / L * np.sqrt(T_N / m)
@@ -130,12 +94,12 @@ def string_f1(T_N, L, m):
 
 def section1():
     line()
-    print("1. IS THE REFERENCE TENSION INDEPENDENT OF THE VIBRATION METHOD?")
+    print("1. INDEPENDENCE OF THE REFERENCE TENSION FROM THE VIBRATION METHOD")
     line()
     print("   For each of the thirty SISTRAL rows, the taut-string fundamental")
     print("   implied by the tabulated pull is compared with the tabulated")
-    print("   frequency.  If they agree to the tabulation quantum the pull was")
-    print("   COMPUTED FROM the frequency and is not an independent measurement.")
+    print("   frequency.  Agreement to the tabulation quantum means the pull was")
+    print("   computed from the frequency and is not an independent measurement.")
     print()
     print("   %-9s %9s %9s %9s %9s" %
           ("cable", "f sheet", "f from T", "diff Hz", "diff %"))
@@ -148,23 +112,21 @@ def section1():
         print("   %-9s %9.2f %9.4f %+9.4f %+9.2f" %
               (name, f, fs, dif, 100 * dif / f))
     print()
-    print("   largest discrepancy over all thirty rows: %.4f Hz, i.e. within"
+    print("   largest difference over the thirty rows: %.4f Hz, within"
           % worst)
-    print("   the sheet's own 0.01 Hz tabulation quantum on every cable.")
+    print("   the 0.01 Hz tabulation quantum of the sheet on every cable.")
     print()
-    print("   CONSEQUENCE.  The SISTRAL pull is a single-mode taut-string")
-    print("   inversion of one picked frequency -- the same estimator the study")
-    print("   is testing, run a month earlier with impulse rather than ambient")
-    print("   excitation.  It is not a load cell, not a lift-off, not a jacking")
-    print("   record.  So the residuals in the manuscript's Table 5 measure the")
+    print("   The SISTRAL pull is a single-mode taut-string")
+    print("   inversion of one picked frequency, the same method that is under")
+    print("   test, applied a month earlier with impulse instead of ambient")
+    print("   excitation.  It is not a load-cell, lift-off or jacking")
+    print("   record.  The residuals in the validation table therefore measure the")
     print("   disagreement between two vibration readings of the same cable,")
-    print("   not between vibration and an independent force.")
+    print("   not the difference between vibration and an independent force.")
     return pd.DataFrame(rows)
 
 
-# ===========================================================================
-# section 2: anchorage geometry, fitted so every stay gets an inclination
-# ===========================================================================
+# === section 2: anchorage geometry, fitted to give every stay an angle ======
 
 def fit_mast_height():
     """Height of the mast anchorage above deck level, fitted on the NE fan.
@@ -172,9 +134,7 @@ def fit_mast_height():
     The eight NE stays run from one mast head to eight anchorages spaced
     evenly along the deck.  With h the vertical rise, the horizontal reach of
     stay i is sqrt(L_i^2 - h^2); the h that makes those reaches most nearly
-    evenly spaced is the geometry the fan implies.  It is a fit to the stay
-    schedule only, and it is checked below against the inclination bands the
-    study carries.
+    evenly spaced is the geometry the fan implies. Returns (h in m, cost).
     """
     Ls = np.array([L for n, d, m, L, f, T, Td in SISTRAL
                    if n.startswith("NE") and n != "N1(NE1)"])
@@ -198,7 +158,7 @@ def section2(h):
     print("   mast rise above deck fitted on the NE fan: h = %.1f m" % h)
     print()
     print("   %-6s %8s %9s %10s   %s" %
-          ("stay", "L [m]", "reach [m]", "theta [deg]", "study's band"))
+          ("stay", "L [m]", "reach [m]", "theta [deg]", "validation band"))
     for k, s in STAYS.items():
         L = [row for row in SISTRAL if row[0] == s["sistral"]][0][3]
         th = np.rad2deg(np.arcsin(h / L))
@@ -206,21 +166,19 @@ def section2(h):
         print("   %-6s %8.2f %9.1f %10.1f   %.0f-%.0f" %
               (k, L, reach, th, s["th"][0], s["th"][1]))
     print()
-    print("   The fit lands at the bottom of every band the study carries, so")
-    print("   using it maximises cos(theta) and therefore maximises every")
-    print("   predicted veering width below.  That is deliberate: the whole")
-    print("   audit is run in favour of the coupling hypothesis.")
+    print("   The fitted angle is at the bottom of each validation band, so")
+    print("   it gives the largest cos(theta) and therefore the largest")
+    print("   predicted veering width below.  The widths below are therefore")
+    print("   at the upper end of the range the angle bands allow.")
     print()
-    print("   Placing those reaches on the Figure 4.14 abscissa puts the four")
-    print("   anchorages near -77, -71, -51 and -41 m.  The check is Figure")
-    print("   4.14 itself: at -51 m the mode-7 ordinate is 0.6-1.0, which is")
-    print("   the band the study reads for N5E, and at -60 to -68 m the mode-1")
-    print("   ordinate is 0.06-0.33, which is the band it reads for N8E.")
+    print("   Placing those reaches on the abscissa of Kumar (2011) Figure 4.14")
+    print("   puts the four anchorages near -77, -71, -51 and -41 m.  The same")
+    print("   figure confirms this: at -51 m the mode-7 ordinate is 0.6-1.0, the")
+    print("   validation band for N5E, and at -60 to -68 m the mode-1")
+    print("   ordinate is 0.06-0.33, the validation band for N8E.")
 
 
-# ===========================================================================
-# section 3: the four instrumented stays, five orders each
-# ===========================================================================
+# === section 3: the four instrumented stays, five orders each ================
 
 def mu_band(stay, jdeck, ordinate=None):
     """mu_eff band for a stay against global mode index jdeck (1-based)."""
@@ -231,7 +189,7 @@ def mu_band(stay, jdeck, ordinate=None):
     if band is None:
         band = ORDINATE.get(key)
     if band is None:
-        # no ordinate read exists: carry the mass-normalisation ceiling only
+        # no ordinate read exists: use the mass-normalization ceiling only
         p_lo, p_hi, src = 0.0, 1.0, "ceiling"
     else:
         p_lo, p_hi, src = band
@@ -269,20 +227,20 @@ def section3(h):
     line()
     print("3. THE FOUR INSTRUMENTED STAYS, ORDERS 1 TO 5")
     line()
-    print("   d is against the NEAREST identified global mode.  The identified")
+    print("   d is against the nearest identified global mode.  The identified")
     print("   table stops at %.3f Hz, so for any stay mode above that the" % DECK_TOP)
-    print("   nearest tabulated mode is the top one and d is a LOWER bound on")
-    print("   the true detuning, not a measurement.  Those rows are marked > and")
-    print("   carry no eps: nothing in the record says where the next global")
-    print("   mode sits, so no prediction can be made there either way.")
+    print("   nearest tabulated mode is the top one and d is a lower bound on")
+    print("   the true detuning.  Those rows are marked > and carry no eps:")
+    print("   the record does not give the frequency of the next global")
+    print("   mode, so no prediction is made there.")
     print()
     print("   eps_f is the fractional frequency error.  The single-mode tension")
-    print("   error is 2 eps_f.  The share that reaches the manuscript's")
+    print("   error is 2 eps_f.  The share that reaches the")
     print("   orders-2-to-5 tension is eps_f n^2/27.")
     print()
-    print("   mu_eff columns: 'read' uses the Figure 4.14 ordinate band, at the")
-    print("   40 t deck modal mass floor; 'ceil' is the mass-normalisation")
-    print("   ceiling phi_a <= 1/sqrt(M), an absolute bound no ordinate can beat.")
+    print("   mu_eff columns: 'read' uses the ordinate band of Kumar (2011)")
+    print("   Figure 4.14 at the 40 t deck modal mass floor; 'ceil' uses the")
+    print("   mass-normalization ceiling phi_a <= 1/sqrt(M), which bounds any ordinate.")
     print()
     hdr = ("stay", "n", "f_n", "gm", "f_g", "d", "src", "mu read hi",
            "mu ceil", "s read %", "eps_f %", "2eps %", "in T25 %", "ceil T25 %")
@@ -326,12 +284,12 @@ def section3(h):
                 residual_orders25_pct=RESIDUAL_HI[k],
                 residual_f1_pct=RESIDUAL_F1[k]))
     print()
-    print("   Alternative read of the one band that matters most: this audit")
-    print("   reads global mode 3 at the N7E anchorage as 0.03-0.15 of the unit")
-    print("   maximum, against the 0.00-0.08 the paper carries.  At the wider")
-    print("   read mu_eff rises to %.1e and eps_f to %.2f per cent, still an"
+    print("   Alternative read of global mode 3 at the N7E anchorage:")
+    print("   0.03-0.15 of the unit maximum, against the validation band")
+    print("   of 0.00-0.08.")
+    print("   With the wider read, mu_eff is %.1e and eps_f is %.2f percent,"
           % tuple(_n7e_alt(h)))
-    print("   order below the residual it would have to explain.")
+    print("   an order of magnitude below the tabulated residual.")
     return pd.DataFrame(rows)
 
 
@@ -350,14 +308,14 @@ def section3b(df):
     line()
     print("3c. PREDICTED SHARE OF EACH TABULATED RESIDUAL")
     line()
-    print("   The manuscript's Table 5 residual is T(orders 2-5) against the")
-    print("   SISTRAL pull.  Coupling can enter it twice: through the ambient")
-    print("   orders 2-5, diluted by the fit to eps n^2/27 each, and through")
-    print("   the SISTRAL fundamental that fixes the reference pull, at the")
-    print("   full 2 eps.  Both are summed in magnitude, never with their")
-    print("   signs, so the totals are upper bounds and not estimates.")
+    print("   The tabulated residual is T(orders 2-5) against the")
+    print("   SISTRAL pull.  Coupling enters it in two ways: through the ambient")
+    print("   orders 2-5, reduced by the fit to eps n^2/27 each, and through")
+    print("   the SISTRAL fundamental that sets the reference pull, at the")
+    print("   full 2 eps.  The two are summed in magnitude, without their")
+    print("   signs, so the totals are upper bounds.")
     print()
-    print("   TIER A -- Figure 4.14 ordinate reads, deck modal mass at 40 t")
+    print("   Tier A: Kumar (2011) Figure 4.14 ordinate reads, deck modal mass 40 t")
     print("   %-5s %13s %13s %13s %10s %10s"
           % ("stay", "from ambient", "from SISTRAL", "total pred", "tabulated",
              "resid/pred"))
@@ -385,9 +343,9 @@ def section3b(df):
                                                      if ambc + sisc > 0
                                                      else np.nan)))
     print()
-    print("   TIER B -- mass-normalisation ceiling, phi_a = 1/sqrt(40 t)")
-    print("   the largest coupling the bridge can physically support, with a")
-    print("   perfect antinode placed on the anchorage of every mode at once")
+    print("   Tier B: mass-normalization ceiling, phi_a = 1/sqrt(40 t),")
+    print("   the largest coupling the 40 t modal mass allows, with an")
+    print("   antinode at the anchorage in every mode at once")
     print("   %-5s %13s %13s %13s %10s %10s"
           % ("stay", "from ambient", "from SISTRAL", "total ceil", "tabulated",
              "resid/ceil"))
@@ -397,9 +355,9 @@ def section3b(df):
                  r["ceiling_from_sistral_pct"], r["ceiling_total_pct"],
                  r["tabulated_pct"], r["ratio_residual_over_ceiling"]))
     print()
-    print("   Read the ambient column on its own -- it is the only column that")
-    print("   bears on the estimator the manuscript is defending, because the")
-    print("   SISTRAL column is a bias in the REFERENCE, not in the estimate:")
+    print("   Ambient column alone.  Only this column bears on the method")
+    print("   under test; the SISTRAL column is a bias in the reference pull,")
+    print("   not in the identified tension:")
     print("   %-5s %14s %12s %10s" % ("stay", "ambient pred", "tabulated",
                                       "resid/pred"))
     for r in out:
@@ -411,24 +369,21 @@ def section3b(df):
 
 
 def section3c(df):
-    """Signed comparison after removing the common offset the paper isolates.
+    """Signed comparison after removing the common offset of the residuals.
 
-    The manuscript argues that a common positive offset of about 5.6 per cent
-    is epoch drift and cannot be attributed to an estimator, so that what the
-    estimator owns is the SPREAD.  Taking that argument at face value, the
-    quantity to predict is each residual minus the four-stay mean, and the
-    prediction must be signed: repulsion carries a stay branch AWAY from the
-    global mode it meets, up when that mode sits below and down when above.
+    The offset (four-stay mean) is treated as epoch drift. Repulsion moves a
+    stay branch away from the global mode it meets: up when that mode is
+    below, down when above.
     """
     line()
     print("3d. SIGNED COMPARISON AFTER REMOVING THE COMMON OFFSET")
     line()
     off = float(np.mean(list(RESIDUAL_HI.values())))
     print("   common offset (mean of the four residuals): %+.2f%%" % off)
-    print("   the manuscript treats this as epoch drift, leaving the spread as")
-    print("   the estimator-dependent part.  Signed prediction below: a stay")
-    print("   mode BELOW its global partner is pushed DOWN, which lowers the")
-    print("   fitted tension; above, it is pushed UP.")
+    print("   The offset is treated as epoch drift, and the spread as")
+    print("   the method-dependent part.  Signed prediction below: a stay")
+    print("   mode below its global partner is pushed down, which lowers the")
+    print("   fitted tension; a mode above it is pushed up.")
     print()
     print("   %-5s %12s %14s %12s %10s"
           % ("stay", "resid - off", "signed pred", "difference", "ratio"))
@@ -449,24 +404,22 @@ def section3c(df):
         out.append(dict(stay=k, residual_minus_offset_pct=obs,
                         signed_prediction_pct=pred))
     print()
-    print("   Only N8E carries a non-zero signed prediction, and it has the")
-    print("   right sign and the right order.  That is one point of agreement")
-    print("   bought with a fitted offset (one degree of freedom out of four")
-    print("   residuals) and with the top of an unread ordinate band, so it is")
-    print("   suggestive and nothing more.  It is not a measurement of s.")
+    print("   Only N8E has a non-zero signed prediction, and it matches the")
+    print("   residual in sign and order of magnitude.  This one agreement")
+    print("   rests on a fitted offset (one degree of freedom out of four")
+    print("   residuals) and on the top of an ordinate band not measured at")
+    print("   the anchorage.  It is not a measurement of s.")
     return pd.DataFrame(out)
 
 
-# ===========================================================================
-# section 3b/5: the SISTRAL side, and the thirty-stay search
-# ===========================================================================
+# === section 3b/5: the SISTRAL side, and the thirty-stay search ==============
 
 def sistral_bias(h):
     """Coupling bias the SISTRAL fundamental could carry, per instrumented stay.
 
-    The SISTRAL frequency IS the isolated-cable reading whose inversion fixes
-    the reference pull, so a bias there enters the tabulated residual at the
-    full 2 eps.  Returned as (read-band bias, ceiling bias, detail).
+    The SISTRAL pull is the taut-string inversion of this frequency, so a bias
+    there enters the tabulated residual at the full 2 eps. Returns
+    (read-band bias, ceiling bias, detail) dicts keyed by stay.
     """
     read, ceil, detail = {}, {}, {}
     for k, s_ in STAYS.items():
@@ -488,9 +441,9 @@ def section4(h):
     line()
     print("3b. THE SISTRAL FUNDAMENTAL OF EACH INSTRUMENTED STAY")
     line()
-    print("   This is the frequency whose taut-string inversion IS the")
-    print("   reference pull.  If it sits on a global mode, the reference is")
-    print("   biased, not the estimate.")
+    print("   The taut-string inversion of this frequency is the")
+    print("   reference pull.  A fundamental on a global mode biases the")
+    print("   reference pull, not the identified tension.")
     print()
     print("   %-5s %7s %3s %7s %9s %7s %10s %8s %9s %9s"
           % ("stay", "f SIS", "gm", "f_g", "d", "src", "mu read hi",
@@ -502,14 +455,14 @@ def section4(h):
               % (k, f1, jm, fg, d, src, mu_hi, 100 * s_hi, 200 * e_hi,
                  200 * e_cl))
     print()
-    print("   N8E is the case that matters.  Its SISTRAL fundamental at")
-    print("   0.74 Hz sits %.2f per cent from the first global mode at"
+    print("   N8E: the SISTRAL fundamental at")
+    print("   0.74 Hz is %.2f percent from the first global mode at"
           % abs(100 * SIS_DETAIL["N8E"][3]))
-    print("   0.747 Hz.  That is a near-exact crossing on a stay that carries")
-    print("   a reference pull -- but the crossing contaminates the reference")
-    print("   rather than testing the law, because the reference is itself a")
-    print("   single-mode string inversion.  The same is true of N7E, whose")
-    print("   SISTRAL fundamental at 1.06 Hz sits %.2f per cent from the second"
+    print("   0.747 Hz, a near-exact crossing on a stay with")
+    print("   a reference pull.  The crossing biases the reference")
+    print("   and does not test the law, because the reference is itself a")
+    print("   single-mode string inversion.  The same holds for N7E, whose")
+    print("   SISTRAL fundamental at 1.06 Hz is %.2f percent from the second"
           % abs(100 * SIS_DETAIL["N7E"][3]))
     print("   global mode at 1.065 Hz.")
 
@@ -518,7 +471,7 @@ def section5(h):
     line()
     print("5. ALL THIRTY SISTRAL STAYS AGAINST THE TWELVE GLOBAL MODES")
     line()
-    print("   Each stay's tabulated frequency is its fundamental (Section 1),")
+    print("   Each stay's tabulated frequency is its fundamental (part 1 above),")
     print("   so its own series is n f_1 for n = 1..5.  A hit is |d| < %.2f."
           % NEAR)
     print()
@@ -551,17 +504,15 @@ def section5(h):
     print("   on %d of the 30 cables."
           % len({h_[0] for h_ in hits}))
     print()
-    print("   But every one of the thirty pulls is a string inversion of the")
-    print("   frequency in the same row (Section 1), so for the twenty-six")
-    print("   cables with no ambient modal series the residual is zero BY")
-    print("   CONSTRUCTION and no test exists.  Widening the search from four")
-    print("   cables to thirty adds coincidences and adds no measurement.")
+    print("   Each of the thirty pulls is a string inversion of the")
+    print("   frequency in the same row (part 1 above), so for the twenty-six")
+    print("   cables with no ambient modal series the residual is zero by")
+    print("   construction and gives no test.  Extending the screen from four")
+    print("   cables to thirty adds near-crossings but no independent tension.")
     return pd.DataFrame(rows)
 
 
-# ===========================================================================
-# section 6: resolvability
-# ===========================================================================
+# === section 6: resolvability ================================================
 
 def section6(df):
     line()
@@ -571,7 +522,7 @@ def section6(df):
           % DIP_ANY)
     print("   needs s > %.3f zeta.  Kumar reports zeta = %.2f%% for the N8E"
           % (DIP_3DB, 100 * ZETA_KUMAR))
-    print("   fundamental; the study's campaign carries %.1f-%.1f%%."
+    print("   fundamental; the parametric study uses %.1f-%.1f%%."
           % (100 * ZETA_LO, 100 * ZETA_HI))
     print()
     sub = df[df.near_crossing & (df.record == "PonteDelMare")]
@@ -585,14 +536,12 @@ def section6(df):
         print("   %-5s %2d %8.2f %11.2f%% %11.2f%%   %s"
               % (r.stay, r.n, 100 * r.s_hi, 100 * z_any, 100 * z_3db, verdict))
     print()
-    print("   These are the widths at the TOP of every band.  At the bottom of")
+    print("   These are the widths at the top of every band.  At the bottom of")
     print("   the bands every split is unresolvable at any damping the record")
-    print("   admits.")
+    print("   allows.")
 
 
-# ===========================================================================
-# section 7: Aveiro
-# ===========================================================================
+# === section 7: Aveiro =======================================================
 
 AVEIRO_GLOBAL = np.array([1.70, 1.85, 3.17, 3.25, 3.40, 3.96, 4.05])
 AVEIRO_LABEL = ["strip 1", "strip 2", "deck 1", "deck 2", "strip 2nd",
@@ -601,11 +550,11 @@ AVEIRO_LABEL = ["strip 1", "strip 2", "deck 1", "deck 2", "strip 2nd",
 
 def section7():
     line()
-    print("7. AVEIRO (Rebelo et al. 2010): IS ANY OF THE EIGHT NEAR A CROSSING?")
+    print("7. AVEIRO (Rebelo et al. 2010): NEAR-CROSSING SCREEN OF THE EIGHT STAYS")
     line()
-    print("   Eight stays, fundamentals only.  The screen is run on n = 1..5,")
-    print("   not just the fundamental, so a harmonic landing on a global mode")
-    print("   would be caught.  Global modes span %.2f-%.2f Hz."
+    print("   Eight stays, fundamentals only.  The screen covers n = 1..5,")
+    print("   so a harmonic near a global mode")
+    print("   is also detected.  Global modes span %.2f-%.2f Hz."
           % (AVEIRO_GLOBAL.min(), AVEIRO_GLOBAL.max()))
     print()
     print("   %-6s %2s %8s %-10s %8s %9s   %s"
@@ -639,14 +588,14 @@ def section7():
           % df[~df.d_is_lower_bound].d.abs().min())
     print("   near-crossings found: %d" % hits)
     print()
-    print("   Aveiro also has no independent tension: the 'estimated' force is")
-    print("   the frequency-control reading itself, compared against a DESIGN")
-    print("   force, not against a measured one.  It clears the screen, which")
-    print("   is a consistency check, and cannot test the amplitude law.")
+    print("   Aveiro also has no independent tension: the estimated force is")
+    print("   the frequency-control reading itself, compared with a design")
+    print("   force, not a measured one.  It passes the screen, which")
+    print("   is a consistency check and does not test the amplitude law.")
     return df
 
 
-# ===========================================================================
+# === main ===================================================================
 
 def main():
     df_sis_check = section1()
@@ -672,10 +621,10 @@ def main():
     print()
 
     line()
-    print("8. THE INTERSECTION QUESTION, ANSWERED")
+    print("8. STAYS NEAR A CROSSING THAT CARRY A REFERENCE PULL")
     line()
     near_instr = df3[df3.near_crossing]
-    print("   Stays that are BOTH near a crossing (|d| < %.2f) AND carry a" % NEAR)
+    print("   Stays that are both near a crossing (|d| < %.2f) and carry a" % NEAR)
     print("   tabulated reference pull:")
     for _, r in near_instr.iterrows():
         print("     %s mode %d at %.3f Hz vs global mode %d at %.3f Hz, "
@@ -686,18 +635,18 @@ def main():
             print("     %s SISTRAL fundamental at %.2f Hz vs global mode %d at "
                   "%.3f Hz, d = %+.4f" % (k, det[0], det[1], det[2], det[3]))
     print()
-    print("   So the intersection is NOT empty on the detuning axis: three of")
-    print("   the four instrumented stays carry a stay mode inside 5 per cent")
-    print("   of an identified global mode, two of them inside 0.4 per cent.")
-    print("   What is empty is the intersection with a MEASUREMENT, on two")
-    print("   counts.  First, no tension on either bridge is independent of the")
-    print("   vibration method (Sections 1 and 7).  Second, at every one of")
-    print("   those crossings the bias the study's own law predicts in the")
-    print("   ESTIMATOR -- the ambient orders 2 to 5 -- is 0.90 per cent at")
-    print("   worst (N8E) and below 0.15 per cent on the other three, against")
-    print("   residuals of 3.9 to 7.6 per cent.  The larger predicted bias")
-    print("   lands on the SISTRAL reference, which is not a test of the law")
-    print("   but a defect of the reference.")
+    print("   On detuning alone such stays exist: three of")
+    print("   the four instrumented stays have a stay mode within 5 percent")
+    print("   of an identified global mode, two of them within 0.4 percent.")
+    print("   None of them gives a test against a measured tension, for two")
+    print("   reasons.  First, no tension on either bridge is independent of the")
+    print("   vibration method (parts 1 and 7).  Second, at each of")
+    print("   those crossings the closed-form bias in the tension")
+    print("   from the ambient orders 2 to 5 is 0.90 percent at")
+    print("   worst (N8E) and below 0.15 percent on the other three, against")
+    print("   residuals of 3.9 to 7.6 percent.  The larger predicted bias")
+    print("   falls on the SISTRAL reference pull, where it is a defect of the")
+    print("   reference and not a test of the law.")
 
     frames = [df3.assign(source="Table4.4_ambient"),
               df5.assign(source="Table5.5_SISTRAL"),

@@ -1,17 +1,11 @@
 # -*- coding: utf-8 -*-
-"""What the crossing costs depends on how the record is read.
+"""Figure: tension error at exact tuning by the method used to read the record.
 
-Panel (a): the tension error at exact tuning against damping, for three ways
-of reading the same record. Peak picking reads one maximum. The trace rule
-reads BOTH peaks of the same single-channel spectrum and uses
-f_s^2 = f_+^2 + f_-^2 - f_d^2. Subspace identification fits modes, and is
-scored with the one-pole fallback on the records where it returns a single
-pole, since an engineer must still report a tension there.
-
-Panel (b): the fraction of the traverse on which the spectrum shows two
-peaks, against the tolerance within which a peak must match a branch to
-count. A separation rate quoted at one tolerance says as much about the
-tolerance as about the method.
+Panel (a): RMS error against damping for one picked peak, the trace rule
+f_s^2 = f_+^2 + f_-^2 - f_d^2 on both peaks, and subspace identification
+with the one-pole fallback. Panel (b): fraction of the traverse showing two
+peaks against the peak-match tolerance. Reads data/oma.csv; writes
+fig_oma.pdf and .png to OUT.
 
 Run:  python3 scripts/fig_oma.py
 """
@@ -32,8 +26,8 @@ import figstyle as F  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 
 DATA = os.path.join(ROOT, "data")
-OUT = os.path.join(ROOT, "revision 1", "sources", "figures")
-DUR = 600.0                     # an ordinary ambient survey
+OUT = os.environ.get("FIGURE_DIR", os.path.join(ROOT, "figures"))
+DUR = 600.0                     # record length (s), ordinary ambient survey
 
 
 def rms(g, c):
@@ -69,9 +63,8 @@ def main():
     F.headroom(a1, top=0.34)
     a1.legend(loc="upper left", fontsize=9.0, labelspacing=0.24, frameon=False)
     F.panel(a1, "a", "error by reading method")
-    # zeta = 0.5 %: above it the spectrum shows one peak and the trace rule
-    # cannot be applied. A short dashed line from the axis up to the
-    # subspace-fit curve marks it; the caption says what it means.
+    # Dashed marker at zeta = 0.5 %: above it the spectrum shows one peak and
+    # the trace rule cannot be applied.
     y0 = a1.get_ylim()[0]
     a1.plot([0.5, 0.5], [y0, curves["errT_cov2_trf_pct"][0.5]], ls=(0, (3, 2)),
             color="0.40", lw=1.3, zorder=0.5)

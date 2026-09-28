@@ -1,32 +1,13 @@
 # -*- coding: utf-8 -*-
-"""Verification of the two-dimensional stay model, src/cablefe2d.py, before
-it is used for the sag (R1.5, R2.2) and pylon (R2.3, R2.4) studies.
+"""Verification of the two-dimensional stay model in src/cablefe2d.py.
 
-Three checks, each against something the model did not assume.
-
-1. Straight limit.  With g = 0 and a rigid pylon the model must reproduce
-   cablefe.CableDeck, the model every published number came from, on the
-   worked bridge over a tension range through the crossing: the coupled
-   frequencies, the veering pair and the energy split.  The only physical
-   difference is that the stay now also carries axial inertia, whose modes
-   lie far above the band, so agreement should be well inside 0.1 %.
-
-2. Irvine.  The sagged stay alone, both ends held, must return the
-   symmetric in-plane modes of Irvine's equation
-   tan(beta/2) = beta/2 - (4/lambda^2)(beta/2)^3 and leave the
-   antisymmetric ones at the string values, for lambda^2 from 0.25 to 16
-   and for an inclined chord.  This also settles which form of lambda^2 is
-   the right one for an inclined cable: the chord-based form with the
-   gravity component normal to the chord (irvine_lambda2_chord), against
-   the horizontal-projection form that cablefe.irvine_lambda2 carries.
-
-3. Two-ended drive.  With a flexible pylon whose sway mode is tuned to the
-   stay while the deck is made very stiff, the coupling is through the
-   pylon alone and the split must follow (2 / n pi) sqrt(M_s) sin(theta)
-   |phi_p| at orders one and two; with deck and pylon both flexible the
-   split must follow the two-ended form with the parity sign, and not the
-   one-ended form or the wrong sign.
-
+1. Straight limit: with g = 0 and a rigid pylon the model reproduces
+   cablefe.CableDeck on the example bridge over tensions through the crossing.
+2. Irvine and Caughey (1974): the sagged stay alone returns the symmetric
+   in-plane modes of tan(beta/2) = beta/2 - (4/lambda^2)(beta/2)^3, with
+   lambda^2 in the chord form, and string values for the antisymmetric ones.
+3. Two-ended drive: with a flexible pylon, alone or with a flexible deck, the
+   finite element split follows split_two_ended.
 Writes data/verify_cablefe2d.csv.
 
 Run:  python3 scripts/verify_cablefe2d.py
@@ -49,10 +30,8 @@ from cablefe2d import (CableDeck2D, G, irvine_lambda2_chord,  # noqa: E402
 
 
 def irvine_lambda2(L, T, EA, m, theta, g=G):
-    """The HORIZONTAL-PROJECTION form the submitted campaign used (mass per
-    unit arc length, H = T cos theta, L_h = L cos theta), kept here only to
-    print what it would have said; cablefe.irvine_lambda2 is now the chord
-    form."""
+    """lambda^2 in the horizontal-projection form (H = T cos theta,
+    L_h = L cos theta), printed for comparison with the chord form."""
     H = T * np.cos(theta)
     Lh = L * np.cos(theta)
     d = m * g * Lh ** 2 / (8.0 * H)
@@ -80,7 +59,7 @@ def check1():
         b = CableDeck2D(T=T, g=0.0, **BRIDGE)
         fa, Pa = a.modes(14)
         fb, Pb = b.modes(14)
-        # drop the stay's axial modes if any fell in range (they should not)
+        # the stay's axial modes lie far above the 12 modes compared
         ea, eb = a.energy_split(Pa), b.energy_split(Pb)
         err = np.abs(fb[:12] / fa[:12] - 1.0).max()
         derr = np.abs(eb[:12] - ea[:12]).max()
@@ -88,7 +67,7 @@ def check1():
         rows.append(dict(check="straight", T=T, worst_freq_err=err, worst_split_err=derr))
     print(f"   worst relative frequency error over 12 modes and 12 tensions: {worst:.2e}")
     assert worst < 1e-3, worst
-    # the veering pair at the exact-tuning tension of the campaign
+    # the veering pair at the exact-tuning tension, 151.6 kN
     a = CableDeck(T=151.6e3, **BRIDGE)
     b = CableDeck2D(T=151.6e3, g=0.0, **BRIDGE)
     fa, _ = a.modes(20)
@@ -104,32 +83,30 @@ def check2():
     T = 151.6e3
     worst_sym, worst_asym, worst_conv = 0.0, 0.0, 0.0
     for lam2_target in (0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0):
-        # choose g so that the chord-based lambda^2 hits the target (the
-        # L_e correction makes it implicit; iterate twice)
+        # choose g so the chord-based lambda^2 hits the target; L_e makes
+        # the relation implicit, so iterate
         g = np.sqrt(lam2_target / irvine_lambda2_chord(Lc, T, EA, mc, theta, g=1.0))
         for _ in range(3):
             g *= np.sqrt(lam2_target / irvine_lambda2_chord(Lc, T, EA, mc, theta, g=g))
         lam2 = irvine_lambda2_chord(Lc, T, EA, mc, theta, g=g)
         lam2_h = irvine_lambda2(Lc, T, EA, mc, theta, g=g)
         for nc in (40, 80):
-            # Irvine neglects the variation of tension along the chord, so
-            # the check is made on his terms (uniform tension); the sag
-            # study reports both cases
+            # uniform tension along the chord, as Irvine's theory assumes
             cd = CableDeck2D(T=T, g=g, nc=nc, Ld=80.0, EId=2.0e9, md=1000.0,
                              Lc=Lc, EIc=EIc, mc=mc, EA=EA, theta=theta,
                              tension_variation=False)
             f = cd.stay_alone(6)
-            # bending stiffness moves every mode slightly; compare with the
-            # tensioned-beam-corrected string for the antisymmetric ones and
-            # scale Irvine's beta by the same factor for the symmetric ones
+            # bending stiffness raises every mode slightly: apply the
+            # tensioned-beam factor to the string (antisymmetric) values and
+            # to Irvine's beta (symmetric) values
             f_str = np.array([string_freq(n, Lc, T, mc) for n in (1, 2, 3, 4)])
             bend = np.sqrt(1.0 + EIc * (np.arange(1, 5) * np.pi / Lc) ** 2 / T)
             b1 = irvine_symmetric_beta(lam2, 1)
             b3 = irvine_symmetric_beta(lam2, 2)
             f_irv1 = b1 * np.sqrt(T / mc) / Lc / (2 * np.pi) * bend[0]
             f_irv3 = b3 * np.sqrt(T / mc) / Lc / (2 * np.pi) * bend[2]
-            # order the FE modes by frequency; identify the symmetric ones as
-            # those NOT within 0.05 % of the antisymmetric string values
+            # symmetric modes are those NOT within 0.5 % of the antisymmetric
+            # string values
             f_asym = f_str[[1, 3]] * bend[[1, 3]]
             is_asym = np.array([np.min(np.abs(x / f_asym - 1)) < 5e-3 for x in f])
             f_sym = f[~is_asym][:2]
@@ -140,7 +117,7 @@ def check2():
             if nc == 80:
                 worst_sym = max(worst_sym, e1, e3)
                 worst_asym = max(worst_asym, ea)
-                print(f"   lambda^2 = {lam2:5.2f} (horizontal form would say {lam2_h:6.2f}, g = {g:6.2f}):"
+                print(f"   lambda^2 = {lam2:5.2f} (horizontal form {lam2_h:6.2f}, g = {g:6.2f}):"
                       f" f_sym1 {f_sym[0]:.4f} vs Irvine {f_irv1:.4f} ({100*e1:.3f} %),"
                       f" f_sym2 {f_sym[1]:.4f} vs {f_irv3:.4f} ({100*e3:.3f} %), antisym err {100*ea:.3f} %")
             rows.append(dict(check="irvine", lam2=lam2, lam2_horizontal=lam2_h, g=g, nc=nc,
@@ -175,8 +152,8 @@ def check3():
     Lc, mc = 25.0, 5.5
     M_s = 0.5 * mc * Lc
     Hp = Lc * np.sin(theta)
-    # (a) pylon alone: a very stiff, heavy deck so that no deck mode sits in
-    # the band; the pylon sway tuned near the n = 1 and n = 2 stay modes
+    # (a) pylon alone: a very stiff deck keeps deck modes out of the band;
+    # pylon sway tuned near the n = 1 and n = 2 stay modes
     for n, EIp in ((1, 2.9e9), (2, 1.2e10)):
         pyl = dict(EI=EIp, m=2000.0, EA=1e11, n=20)
         base = dict(Ld=80.0, EId=2.0e12, md=1000.0, Lc=Lc, EIc=1.2e4, mc=mc, EA=1.4e8,
@@ -199,9 +176,8 @@ def check3():
         rows.append(dict(check="pylon_only", n=n, f_host=fh[j], phi_a=pa[j], phi_p=pp[j],
                          s_fe=gap, s_pylon_formula=s_pyl, s_two_ended=s_two))
         assert abs(gap / s_pyl - 1) < 0.08, (gap, s_pyl)
-    # (b) deck and pylon both flexible and both carrying the host mode near
-    # the stay: the worked bridge deck with a pylon whose sway sits near
-    # the crossing, at n = 1 and n = 2
+    # (b) deck and pylon both flexible: the example bridge deck with a pylon
+    # whose sway sits near the crossing, at n = 1 and n = 2
     for n, EIp in ((1, 3.5e9), (2, 1.4e10)):
         pyl = dict(EI=EIp, m=2000.0, EA=1e11, n=20)
         base = dict(Ld=80.0, EId=2.0e9, md=1000.0, Lc=Lc, EIc=1.2e4, mc=mc, EA=1.4e8,

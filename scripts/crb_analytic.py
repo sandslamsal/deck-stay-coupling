@@ -1,234 +1,15 @@
 # -*- coding: utf-8 -*-
-"""Fisher information and the Cramer-Rao bound on stay tension at a crossing.
+"""Fisher information and Cramer-Rao bound on stay tension at a crossing.
 
-Everything upstream of this script says the tension ESTIMATE is displaced at a
-deck-stay crossing.  It says nothing about whether the tension is RECOVERABLE.
-This script settles that question: it derives, symbolically and then verifies
-numerically, the Fisher information matrix and the Cramer-Rao bound on T for a
-record of the coupled pair measured by a single accelerometer on the stay.
+Model: one stay sensor sees two Lorentzians with weights (1 +- rho)/2,
+rho = d / sqrt(d^2 + s^2), under equal modal force intensities, with the
+Whittle likelihood. Parts 1-4 derive and evaluate the bound; Parts 5-7 check
+it by finite differences, Monte Carlo and Au (2014), Uncertainty law in
+ambient modal identification, Part I, Eq. (15)-(16); Parts 8-10 cover the
+screening criterion, the finite-element bridge and a second (deck) sensor.
+Writes data/crb_analytic.csv.
 
-The short answer, stated here so it is not mistaken for what was expected:
-the information does NOT collapse, and where it degrades it degrades in the
-opposite direction from the resolvability threshold.  Details below and in the
-summary printed by main().
-
-
-THE MODEL
----------
-Two modes, one sensor.  Near the crossing the coupled system is the 2x2 modal
-pencil
-
-    A = [[w_s^2, kappa], [kappa, w_h^2]],    kappa = s w_0^2
-
-with w_s the isolated stay frequency (which carries T through w_s ~ sqrt(T)),
-w_h the host frequency, and the coupling written so that the fractional split
-at exact tuning is exactly the study's s = (2/n pi) cos(theta) sqrt(mu_eff).
-With w_0 = (w_s + w_h)/2 and d = (w_s - w_h)/w_0 the eigenvalues and
-eigenvectors are, to leading order in the small quantities (d, s, zeta),
-
-    f_pm  = f_0 (1 +- R/2),        R = sqrt(d^2 + s^2)          (the study's split)
-    tan 2 alpha = s / d,           v_+ = (cos a, sin a), v_- = (-sin a, cos a)
-
-so the stay sensor, which sees the stay coordinate, sees the two hybrid modes
-with amplitudes proportional to cos(alpha) and -sin(alpha).  Writing
-
-    rho = cos 2 alpha = d / sqrt(d^2 + s^2)
-
-the two peaks carry the fractions (1 + rho)/2 and (1 - rho)/2 of one mode's
-worth of power.  rho is the SECOND observable channel and it is where all of
-the interesting behaviour lives: the frequencies give R, the amplitudes give
-rho, and (R, rho) determine (d, s) with Jacobian determinant -s/R^2.
-
-Under ambient excitation that is broadband in time and delta-correlated in
-space (the standard operational modal analysis assumption, and the one
-scripts/simulate_records.py implements and verifies), the modal forces of
-mass-normalised modes are uncorrelated and of EQUAL intensity.  That is what
-makes the amplitude ratio an observable of the veering rather than an
-observable of the loading, and it is the single most consequential assumption
-in this script; PART 4 computes what happens without it.
-
-The single-sensor acceleration spectral density in the band is then
-
-    S(x) = P/2 [ (1+rho)/(1+(x-u)^2) + (1-rho)/(1+(x+u)^2) ] + S_e
-
-    x = (f - f_0)/(zeta f_0)        frequency in half-power half-widths
-    u = R/(2 zeta) = sqrt(d^2+s^2)/(2 zeta)     reduced half-separation
-                                    (= s/2 zeta at exact tuning, the study's u)
-
-which is the two-Lorentzian model of scripts/run_damping.py with the residues
-supplied by the veering rather than left free.  Written over a common
-denominator,
-
-    S - S_e = P N(x)/D(x),  N = x^2 + 2 rho u x + u^2 + 1,
-                            D = ((x-u)^2 + 1)((x+u)^2 + 1)
-
-so ln S has three complex features in the upper half plane: the two poles of
-D at x = +-u + i (the hybrid pair) and the zero of N at
-
-    x = -delta + i sqrt(1 + sigma^2),     delta = d/2 zeta,  sigma = s/2 zeta
-
-whose real part is the HOST frequency.  Every parameter of the problem acts by
-moving those three points, and the whole Fisher information matrix is a
-bilinear form in the three complex pole velocities.  That is the calculus used
-in PART 1, and it makes the mechanism visible in one line:
-
-    d/d lnT  moves the two poles and NOT the zero
-    d/d lnfh moves the two poles AND the zero
-
-so at exact tuning, where T moves both poles by the same amount and changes
-nothing else, the only thing that separates T from the host frequency is the
-motion of the zero, that is, the amplitude asymmetry.
-
-
-THE LIKELIHOOD
---------------
-Whittle: the periodogram ordinates in the band are asymptotically independent
-and exponentially distributed with mean S(f_k), so
-
-    -ln L = sum_k [ ln S_k + |F_k|^2 / S_k ]
-
-and  I_ab = sum_k d_a ln S_k d_b ln S_k  ->  T_d Int d_a ln S d_b ln S df.
-
-With N_c = f_0 T_d (Au's data length in cycles) and N_half = zeta f_0 T_d
-(ordinates per half-power half-width) the frequency-type scores all carry
-1/zeta, so every result below scales as zeta/N_c.
-
-
-RESULTS (all verified in PART 5-7)
-----------------------------------
-Far from the crossing the bound reduces to the single-mode law
-
-    var(ln f) = zeta/(2 pi N_c B_f(kappa)),  B_f = (2/pi)(atan k - k/(1+k^2))
-
-which is Au's uncertainty law (Au 2014, Uncertainty law in ambient modal identification, Part I, Eq. 15-16) reproduced
-exactly, band factor included; and because T goes as f^2,
-
-    var(ln T) -> 4 var(ln f) = 2 zeta/(pi N_c)          (the far-field bound)
-
-At exact tuning (d = 0), with P and S_e wide-band-free and with s and zeta
-free at no cost (they are even in x, T and f_h are odd, so the FIM block
-diagonalises exactly):
-
-    I_TT   = (pi N_c / 4 zeta) (2 + u^2)/(1 + u^2)
-    I_hh   = (pi N_c / zeta) [ (2 + u^2)/(1 + u^2) - 2/sqrt(1 + u^2) ]
-    I_Th   = I_hh / 2                                    <- the correlation
-    I_TT|h = I_TT - I_Th^2/I_hh = pi N_c / (2 zeta sqrt(1 + u^2))
-
-    var(ln T | host known)   = (2 zeta/pi N_c) . 2(1 + u^2)/(2 + u^2)
-    var(ln T | host unknown) = (2 zeta/pi N_c) . sqrt(1 + u^2)
-                             = sqrt(4 zeta^2 + s^2)/(pi N_c)
-
-The two ratios to the far-field bound are the deliverable:
-
-    host known:    2(1+u^2)/(2+u^2)   ->  1 at u = 0, 2 as u -> infinity
-    host unknown:  sqrt(1+u^2)        ->  1 at u = 0, u as u -> infinity
-
-The FIM is NON-SINGULAR at exact tuning: T is identifiable there.  The
-information about T never vanishes; with the host frequency known it is never
-worse than half, and with it unknown it decays only as 2 zeta/s.
-
-The frequency-only sub-model is a different story.  The map from (f_s, f_h) to
-the two observed frequencies has Jacobian [[c^2, s^2],[s^2, c^2]] in the
-mixing angle, determinant cos 2 alpha = d/sqrt(d^2+s^2), which is EXACTLY ZERO
-at exact tuning.  Every incumbent tension formula is a function of picked peak
-frequencies alone, so at a crossing the incumbent is not merely biased: the
-quantity it reads carries no information about T at all, at first order.  The
-information is in the record, in the amplitude balance, and the incumbent
-throws it away.
-
-Whether the amplitude balance can be used is a separate question, and the
-answer is a ladder rather than a yes.  The amplitude channel is destroyed, and
-the FIM at exact tuning is then EXACTLY SINGULAR, by any one of
-
-  1. using picked peak frequencies only, which is what every incumbent
-     tension formula does;
-  2. an excitation with free unequal modal force intensities, which is a
-     pluck, a deck-dominated load, or the standard BAYOMA parameterisation
-     (PART 4);
-  3. an unknown direct host contribution at the stay sensor.  The stay foot
-     moves with the deck, so the measured asymmetry is cos 2(alpha - chi) and
-     not cos 2 alpha.  An unknown chi is exactly a free amplitude ratio.  In
-     the worked bridge chi is negligible at mid chord and NOT negligible at
-     the 1-2 m station field practice uses, where the measured asymmetry has
-     the wrong sign (PART 9).
-
-In any of those three cases
-
-    var(ln T)/var_far = (1/2)(1 + 1/rho^2) = (1/2)[1 + (1 + eps/|d|)^2]
-
-with eps = sqrt(d^2+s^2) - |d| the study's own bias.  The bias and the
-variance inflation are the same function, which turns the study's screening
-criterion into a precision bound (PART 8).
-
-Two sensors, one on the stay and one on the deck, escape all three: the two
-hybrid shapes are M-orthogonal, so the mixing angle follows from their ratio
-without knowing either gain or anything about the excitation, and the bound
-returns to the uncoupled single-mode value at every detuning and every split
-(PART 10).  The crossing then costs nothing at all.
-
-Where the collapse is NOT: the resolvability threshold u > sqrt(sqrt5 - 2).
-At that threshold sqrt(1+u^2) = 1.1118, an 11 per cent inflation in variance
-and 5 per cent in standard deviation.  The identifiability loss GROWS with u,
-the visibility loss SHRINKS with u, and the two limits therefore run in
-opposite directions.  A pair that cannot be seen is a pair whose tension is
-nearly perfectly recoverable, because a pair that cannot be seen is a pair
-whose coupling is dynamically irrelevant.
-
-RELATION TO EXISTING WORK
--------------------------
-Au's uncertainty laws are the right yardstick and they are used as one here
-rather than rediscovered.
-
-  Au SK (2014), Uncertainty law in ambient modal identification, Part I:
-  Theory.  Eq. (15)-(16) give, for a well-separated mode,
-  delta_f^2 = zeta/(2 pi N_c B_f) and delta_zeta^2 = 1/(2 pi zeta N_c B_zeta).
-  PART 7 reproduces B_f(kappa) symbolically and exactly, which is a check on
-  the machinery used here, not a new result.
-
-  Au SK, Li B, Brownjohn JMW (2021), Achievable precision of close modes in
-  operational modal analysis: Wide band theory; and
-  Au SK, Brownjohn JMW, Li B, Raby A (2021), Understanding and managing
-  identification uncertainty of close modes in operational modal analysis.
-  These give the close-mode law.  Their Eq. (8)-(9) are
-  delta_fi^2 = (zeta_i/2 pi N_ci) Q_fi and delta_zi^2 = (1/2 pi zeta_i N_ci)
-  Q_zi, where the coherence factors Q depend on the modal force coherence
-  |chi| and NOT on the disparity d_i = sqrt(c_i^2 + e_i^2), e_i being the
-  frequency separation in units of zeta f (so e = 2u here).  Their Eq. (3)
-  puts the whole disparity dependence in the Type 2 mode shape uncertainty,
-  which carries 1/d_i^2.  Their Section 3.6 shows that at zero disparity the
-  mode shapes and the modal force PSD matrix are jointly unidentifiable.
-
-What their law states, then, is: for close modes the FREQUENCIES are as
-precisely identified as for well-separated modes, and the casualty is the
-MODE SHAPE, which degrades as 1/d^2 and becomes unidentifiable in the limit.
-
-Does that already contain the collapse described here?  No, and the reason is
-specific.  Their law bounds the precision of the MODAL parameters
-(f_1, f_2, zeta_1, zeta_2, Phi, S).  The tension is not one of those.  It
-enters through the veering map (T, f_h, kappa) -> (f_+, f_-, alpha), whose
-frequency block has determinant cos 2 alpha = d/sqrt(d^2+s^2), zero at exact
-tuning.  That determinant is a structural-dynamics object and is outside an
-uncertainty law that is deliberately agnostic about the structure.  The two
-results compose and neither alone gives the statement: Au says the shape is
-where the uncertainty goes, the veering map says the shape is where the
-tension is, and only together do they say that the tension of a stay at a
-crossing is carried by a quantity whose precision degrades as 1/d^2.
-
-Three things here are not in their law and are not corollaries of it:
-  (i)   the identification of the veering Jacobian, and of rho = d/sqrt(d^2+s^2)
-        as the quantity that governs;
-  (ii)  the single-sensor closed forms 2(1+u^2)/(2+u^2) and sqrt(1+u^2), which
-        need the equal-modal-force assumption their parameterisation does not
-        make, and which have no counterpart in a law written for n >= 2
-        sensors (with n = 1 their |chi| and Phi degenerate);
-  (iii) the anchorage contamination of PART 9, which is specific to a stay.
-
-Honestly stated: the framework is theirs, one of the three routes to
-singularity (their Section 3.6 argument) is theirs in substance, and what is
-added is the veering map, the stay-specific closed forms, and the sensor
-placement consequence.
-
-Run:  python3 scripts/crb_analytic.py      (writes data/crb_analytic.csv)
+Run:  python3 scripts/crb_analytic.py
 """
 
 from __future__ import annotations
@@ -245,7 +26,7 @@ sys.path.insert(0, os.path.join(ROOT, "src"))
 DATA = os.path.join(ROOT, "data")
 CSV = os.path.join(DATA, "crb_analytic.csv")
 
-# thresholds carried over from run_damping.py, not re-derived
+# visibility thresholds from run_damping.py
 U_DIP_COH = np.sqrt(np.sqrt(5.0) - 2.0)      # 0.48587, coherent driving point
 U_DIP_INC = 1.0/np.sqrt(3.0)                 # 0.57735, incoherent ambient sum
 U_3DB = 1.140                                # 3 dB prominence, s = 2.280 zeta
@@ -257,9 +38,7 @@ def add(part, name, **kw):
     ROWS.append(dict(part=part, quantity=name, **kw))
 
 
-# ===========================================================================
-# PART 1  symbolic: the pole calculus and the exact-tuning closed forms
-# ===========================================================================
+# --- Part 1: symbolic pole calculus and exact-tuning closed forms ---
 
 def part1():
     print("=" * 78)
@@ -269,12 +48,11 @@ def part1():
     NUV = sp.sqrt(1 + sg ** 2)
     I = sp.I
 
-    # upper-half-plane features of ln S = ln P + ln N - ln D, with the sign
-    # that ln S carries them with: -1 for the zero of N, +1 for the poles of D
+    # upper-half-plane features of ln S = ln P + ln N - ln D and their signs:
+    # -1 for the zero of N, +1 for the poles of D
     POL = [(I * nu, -1), (sg + I, +1), (-sg + I, +1)]
 
-    # pole velocities.  Derivatives with respect to delta = d/2 zeta are taken
-    # analytically and then evaluated at delta = 0:
+    # pole velocities; d/d delta (delta = d/2 zeta) is evaluated at delta = 0:
     #   zero of N at -delta + i sqrt(1+sigma^2)      -> d/d delta = -1
     #   poles of D at +- sqrt(delta^2+sigma^2) + i   -> d/d delta = +- delta/u = 0
     # ln zeta acts as a dilation of x minus the induced change of (delta,sigma)
@@ -304,24 +82,25 @@ def part1():
     names = ['x0', 'del', 'sig', 'lnz']
     J = {}
     print("\n  reduced FIM  J_ab = Int d_a lnS d_b lnS dx   (FIM = N_half . J)")
-    print("  basis: x0 (band centre, = zeta d/d ln f0), delta = d/2zeta,")
+    print("  basis: x0 (band center, = zeta d/d ln f0), delta = d/2zeta,")
     print("         sigma = s/2zeta, ln zeta;  sigma = u at exact tuning\n")
     for i, a in enumerate(names):
         for b in names[i:]:
             J[(a, b)] = J[(b, a)] = entry(a, b)
             print("    J[%-4s,%-4s] = %s" % (a, b, sp.simplify(J[(a, b)])))
 
-    print("\n  PARITY.  At exact tuning S is even in x, so the scores split into")
+    print("\n  Parity: at exact tuning S is even in x, so the scores split into")
     print("  odd {x0, delta} and even {sigma, ln zeta, ln P, S_e} and the cross")
     print("  entries vanish identically:")
     for pair in [('x0', 'sig'), ('x0', 'lnz'), ('del', 'sig'), ('del', 'lnz')]:
         print("    J%-12s = %s" % (str(pair), J[pair]))
     assert all(sp.simplify(J[p]) == 0 for p in
                [('x0', 'sig'), ('x0', 'lnz'), ('del', 'sig'), ('del', 'lnz')])
-    print("  => at exact tuning, s (hence mu_eff), zeta, P and S_e being")
-    print("     unknown costs NOTHING for T.  Only the host frequency costs.")
+    print("  => at exact tuning, unknown s (hence mu_eff), zeta, P and S_e")
+    print("     add no variance to T; only an unknown host frequency does.")
 
-    # physical scores.  d/d lnT = (1/4z)[x0 + delta], d/d ln fh = (1/2z)[x0 - delta]
+    # physical scores:
+    #   d/d lnT = (1/4z)[x0 + delta], d/d ln fh = (1/2z)[x0 - delta]
     A = sp.simplify(J[('x0', 'x0')] + 2 * J[('x0', 'del')] + J[('del', 'del')])
     B = sp.simplify(J[('x0', 'x0')] - 2 * J[('x0', 'del')] + J[('del', 'del')])
     C = sp.simplify(J[('x0', 'x0')] - J[('del', 'del')])
@@ -340,20 +119,20 @@ def part1():
     Ru = sp.simplify(8 * sp.pi / sch)
     corr2 = sp.simplify(sp.Rational(1, 4) * B / A * 4)          # I_Th^2/(I_TT I_hh)
     print("\n    corr(T, f_h)^2 = I_Th^2/(I_TT I_hh) =", sp.simplify(corr2))
-    print("    1/(1 - corr^2) = the price of the host frequency being unknown")
+    print("    1/(1 - corr^2) = variance factor for an unknown host frequency")
     print("                   =", sp.simplify(1 / (1 - corr2)))
-    print("\n    CRB(lnT)/CRB_far, host KNOWN    =", Rk)
+    print("\n    CRB(lnT)/CRB_far, host known    =", Rk)
     print("    16 zeta^2 I_TT|h / N_half       =", sch)
-    print("    CRB(lnT)/CRB_far, host UNKNOWN  =", Ru)
+    print("    CRB(lnT)/CRB_far, host unknown  =", Ru)
     assert sp.simplify(Rk - 2 * (1 + u ** 2) / (2 + u ** 2)) == 0
     assert sp.simplify(Ru - sp.sqrt(1 + u ** 2)) == 0
     print("\n    limits:  u -> 0   known %s   unknown %s"
           % (sp.limit(Rk, u, 0), sp.limit(Ru, u, 0)))
     print("             u -> oo  known %s   unknown %s"
           % (sp.limit(Rk, u, sp.oo), sp.limit(Ru, u, sp.oo)))
-    print("\n  The u -> 0 limit returning 1 is the physical check: when the")
-    print("  coupling is small compared with the damping the stay reads its")
-    print("  own frequency and neither bias nor information loss survives.")
+    print("\n  Both limits return 1 as u -> 0: when the coupling is small")
+    print("  compared with the damping, the stay reads its own frequency")
+    print("  with neither bias nor loss of information.")
 
     for uu in [0.0, U_DIP_COH, U_DIP_INC, U_3DB, 1.0, 2.34, 5.0, 20.0]:
         add("1", "tuned_ratio", u=uu,
@@ -362,9 +141,7 @@ def part1():
     return sp.lambdify(u, Rk), sp.lambdify(u, Ru)
 
 
-# ===========================================================================
-# PART 2  symbolic: the far-field expansion
-# ===========================================================================
+# --- Part 2: symbolic far-field expansion ---
 
 def part2():
     print()
@@ -399,11 +176,11 @@ def part2():
     print("\n  16 zeta^2 I_TT/N_half =", A, "     [exact value at s = 0: 8 pi]")
     rk = sp.series(sp.simplify(8 * sp.pi / A), sg, 0, 5).removeO()
     rk = sp.simplify(sp.expand(rk))
-    print("\n  CRB(lnT)/CRB_far, host KNOWN:")
+    print("\n  CRB(lnT)/CRB_far, host known:")
     print("   ", rk)
     sch = sp.simplify(A - (2 * C) ** 2 / (4 * B))
     ru = sp.simplify(sp.expand(sp.series(sp.simplify(8 * sp.pi / sch), sg, 0, 5).removeO()))
-    print("\n  CRB(lnT)/CRB_far, host UNKNOWN:")
+    print("\n  CRB(lnT)/CRB_far, host unknown:")
     print("   ", ru)
     rk_c = sp.simplify(sp.factor(sp.expand(rk - 1) * (1 + dl ** 2) ** 2))
     ru_c = sp.simplify(sp.factor(sp.expand(ru - 1) * (1 + dl ** 2) ** 2))
@@ -413,7 +190,7 @@ def part2():
     lead = sp.simplify(sp.series(rk, sg, 0, 4).removeO() - 1)
     print("\n  the O(s^2) term is the same in both and, since")
     print("  sigma^2/(1+delta^2) = s^2/(d^2 + 4 zeta^2), it is a single formula")
-    print("  valid over the WHOLE plane:")
+    print("  valid over the whole plane:")
     print("\n      CRB(lnT)/CRB_far = 1 + s^2 / [2 (d^2 + 4 zeta^2)] + O(s^4)")
     print("\n  which returns 1 + s^2/2d^2 far from the crossing and 1 + u^2/2 at")
     print("  exact tuning, matching the small-u expansion of both PART 1 forms")
@@ -422,18 +199,16 @@ def part2():
         print("    u = %.2f : 2(1+u2)/(2+u2) = %.6f, sqrt(1+u2) = %.6f, 1+u2/2 = %.6f"
               % (uu, 2 * (1 + uu ** 2) / (2 + uu ** 2), np.sqrt(1 + uu ** 2),
                  1 + uu ** 2 / 2))
-    print("\n  -> the far-field check on the algebra passes.  Note the contrast")
-    print("     with the bias: the variance inflation falls as (s/d)^2 while")
-    print("     eps = s^2/2|d| falls only as s^2/|d|, so the bias outlives it.")
+    print("\n  -> the far-field check on the algebra passes.  By contrast, the")
+    print("     variance inflation falls as (s/d)^2 while the bias")
+    print("     eps = s^2/2|d| falls only as s^2/|d|, so the bias persists farther out.")
     add("2", "farfield_known", expr=str(rk_c))
     add("2", "farfield_unknown", expr=str(ru_c))
     add("2", "uniform_small_s", expr="1 + s^2/(2(d^2+4 zeta^2))")
     return rk_c, ru_c
 
 
-# ===========================================================================
-# PART 3  numerical FIM over the (d/zeta, s/zeta) plane
-# ===========================================================================
+# --- Part 3: numerical FIM over the (d/zeta, s/zeta) plane ---
 
 _GL = np.polynomial.legendre.leggauss(24)
 
@@ -519,7 +294,7 @@ def part3(Rk_f, Ru_f):
     print("  worst relative disagreement, quadrature vs closed form: %.2e" % worst)
     assert worst < 2e-5, worst
 
-    print("\n  B.  detuning sweep at s/zeta = 4.68 (worked bridge, zeta = 0.5 %)")
+    print("\n  B.  detuning sweep at s/zeta = 4.68 (example bridge, zeta = 0.5 %)")
     print("  %9s | %9s %9s %9s %9s   %9s" %
           ("d/zeta", "known", "+f_h", "+f_h,s", "all free", "bias eps/s"))
     for dz in [200., 100., 50., 20., 10., 5., 3., 2., 1., 0.5, 0.2, 0.05, 1e-8]:
@@ -544,10 +319,10 @@ def part3(Rk_f, Ru_f):
         print("  %-34s %8.4f %10.4f %10.4f" % (nm, uu, Rk_f(uu), Ru_f(uu)))
         add("3", "threshold", label=nm, u=uu,
             R_known=float(Rk_f(uu)), R_all=float(Ru_f(uu)))
-    print("\n  The loss GROWS with u and the visibility grows with u.  At and")
+    print("\n  The loss grows with u, and so does the visibility.  At and")
     print("  below every visibility threshold the variance inflation is under")
-    print("  1.6.  The identifiability limit and the visibility limit are not")
-    print("  the same place and do not point the same way.")
+    print("  1.6.  Visibility improves with u while identifiability degrades,")
+    print("  so the two limits do not coincide.")
 
     print("\n  D.  effect of a finite noise floor S_e (high-SNR limit assumed above)")
     print("  %10s | %10s %10s" % ("S_e/P", "R_known", "R_all"))
@@ -559,20 +334,17 @@ def part3(Rk_f, Ru_f):
             R_all=crb(I, [0, 1, 2, 3, 4]) / ref)
     print("  S_e/P is the noise floor as a fraction of the peak height.  Au's")
     print("  noise-to-environment ratio nu = S_e/S is 1/(4 zeta^2) times larger,")
-    print("  so S_e/P = 1e-2 at zeta = 0.5 per cent is nu = 100, already a poor")
+    print("  so S_e/P = 1e-2 at zeta = 0.5 percent is nu = 100, a poor")
     print("  record.  The high-SNR closed form is the S_e/P -> 0 row.")
 
 
-# ===========================================================================
-# PART 4  the excitation assumption:  free modal force intensities
-# ===========================================================================
+# --- Part 4: free modal force intensities ---
 
 def fim_free(d, s, zeta, X=1.0e8):
-    """FIM/N_half when the two peak strengths are FREE (BAYOMA parameterisation).
+    """FIM/N_half with free peak strengths (BAYOMA parameterization).
 
-    S = A_+ /(1+(x-u)^2) + A_- /(1+(x+u)^2);  parameters (lnT, ln f_h, s, zeta,
-    ln A_+, ln A_-).  The veering then enters only through (f_0, R), that is
-    only through the two peak positions.
+    S = A_+ /(1+(x-u)^2) + A_- /(1+(x+u)^2); parameters (lnT, ln f_h, s, zeta,
+    ln A_+, ln A_-). The veering then enters only through the peak positions.
     """
     R = np.hypot(d, s); u = R / (2 * zeta); rho = d / R
     x, w = _nodes(u, X)
@@ -583,7 +355,7 @@ def fim_free(d, s, zeta, X=1.0e8):
     dLp = 2 * (x - u) * Lp ** 2; dLm = 2 * (x + u) * Lm ** 2   # = -dL/dx0
     v_x0 = (Ap * dLp + Am * dLm) / S       # = -d lnS/dx, poles shift by +1
     v_u = (Ap * dLp - Am * dLm) / S
-    v_Ap = Lp / S; v_Am = Lm / S            # LINEAR in the amplitudes, so that
+    v_Ap = Lp / S; v_Am = Lm / S            # linear in the amplitudes, so that
     v_lnz = -(u * v_u + x * (-v_x0))       # A_- -> 0 stays an interior point
     # (x0, u) <- (lnT, ln f_h, s) with x0 = ln f0/zeta, u = R/2zeta
     #   d ln f0 = (1/4) dlnT + (1/2) dlnfh ;  dR = rho (dd) + sqrt(1-rho^2) ds
@@ -600,18 +372,18 @@ def fim_free(d, s, zeta, X=1.0e8):
 def part4():
     print()
     print("=" * 78)
-    print("PART 4  what the excitation assumption is worth")
+    print("PART 4  effect of the excitation assumption")
     print("=" * 78)
     print("""
   The results above use the amplitude ratio of the two peaks as an observable
-  of the veering.  That is legitimate only if the two hybrid modes are driven
-  with equal modal force intensity, which holds exactly for a load that is
-  broadband in time and delta-correlated in space acting on mass-normalised
-  modes (verified in scripts/simulate_records.py, check_sigma).  It does NOT
+  of the veering.  This requires the two hybrid modes to be driven with
+  equal modal force intensity, which holds exactly for a load that is
+  broadband in time and delta-correlated in space acting on mass-normalized
+  modes (checked in scripts/simulate_records.py, check_sigma).  It does not
   hold for a pluck on the stay, for an excitation concentrated on the deck, or
-  in the standard BAYOMA parameterisation, where the modal force PSD matrix is
+  in the standard BAYOMA parameterization, where the modal force PSD matrix is
   a free unknown.  Au et al. (2020) make the corresponding point for close
-  modes generally: at zero disparity the mode shapes and the modal force PSD
+  modes in general: at zero disparity the mode shapes and the modal force PSD
   matrix are jointly unidentifiable because Phi S Phi^T = (Phi T)(T^-1 S T^-T)
   (Phi T)^T for any invertible T.
 
@@ -631,7 +403,7 @@ def part4():
     print("  -> one eigenvalue is zero to machine precision at every detuning:")
     print("     with free amplitudes s is not identifiable anywhere.")
 
-    print("\n  with s KNOWN.  CRB(lnT)/CRB_far, free amplitudes against pinned")
+    print("\n  with s known.  CRB(lnT)/CRB_far, free amplitudes against pinned")
     print("  amplitudes, at s/zeta = 4.68 (u = 2.34):")
     print("  %9s %9s | %12s %12s %12s" %
           ("d/zeta", "rho", "free amp", "W(u)/rho^2", "pinned amp"))
@@ -647,8 +419,8 @@ def part4():
         add("4", "free_amplitude", d_over_zeta=dz, s_over_zeta=4.68, rho=rho,
             R_free_amp=rf, R_equal_amp=re_)
 
-    print("\n  the divergence is exactly 1/rho^2; the prefactor W(u) is the")
-    print("  price of a pair that is not yet fully separated, and it tends to")
+    print("\n  the divergence is exactly 1/rho^2; the prefactor W(u) accounts")
+    print("  for a pair that is not yet fully separated, and it tends to")
     print("  1/2 (two independent peak frequencies) as the pair separates:")
     print("  %9s | %12s %12s" % ("u", "W(u)", "1/2"))
     for u_ in [0.5, 1.0, 2.0, 2.34, 4.0, 8.0, 20.0, 200.0]:
@@ -658,35 +430,32 @@ def part4():
         W = np.linalg.inv(If[np.ix_(keep, keep)])[0, 0] / ref * rho ** 2
         print("  %9.2f | %12.5f %12.4f" % (u_, W, 0.5))
         add("4", "W_of_u", u=u_, W=W)
-    print("  W(u) -> (1/2)(1 + 3/2u) for large u; it is NOT a clean closed")
-    print("  form at finite u and is reported numerically rather than fitted.")
+    print("  W(u) -> (1/2)(1 + 3/2u) for large u; at finite u it is")
+    print("  reported numerically rather than fitted.")
     print("""
-  The free-amplitude bound diverges as 1/rho^2 at exact tuning: the FIM IS
-  singular there and T is not identifiable at all.  Whether the tension
-  survives a crossing is therefore a question about what is known a priori,
-  not only about the structure.  Three separate things can put the problem in
-  this singular column:
+  The free-amplitude bound diverges as 1/rho^2 at exact tuning: the FIM is
+  singular there and T is not identifiable.  Identifiability of the tension
+  at a crossing therefore depends on what is known a priori as well as on the
+  structure.  Three conditions each make the problem singular:
 
-    1. picking peak frequencies and discarding the spectrum, which is what
-       every incumbent tension formula does;
+    1. picking peak frequencies and discarding the spectrum, as every
+       existing tension formula does;
     2. an excitation whose two modal force intensities are free, which is a
-       pluck, a deck-dominated load, or the standard BAYOMA parameterisation;
+       pluck, a deck-dominated load, or the standard BAYOMA parameterization;
     3. an unknown direct host contribution at the stay sensor, which rotates
-       the measured asymmetry by an unknown angle and is therefore identical
-       in effect to (2).  PART 9 shows this is severe at the sensor station
-       field practice actually uses.
+       the measured asymmetry by an unknown angle and so acts as (2).
+       PART 9 shows this effect is large at the sensor station used in
+       practice.
 
   Only when none of the three applies is the bound the sqrt(1+u^2) of PART 1.""")
 
 
-# ===========================================================================
-# PART 5  verification: numerical FIM by finite differences on the likelihood
-# ===========================================================================
+# --- Part 5: check by finite differences on the likelihood ---
 
 def psd_exact(f, T, fh, s, zeta, lnSf, lnSe, Tref, fref, accel=True):
-    """Two-mode single-sensor PSD with NO narrow-band approximation.
+    """Two-mode single-sensor PSD without the narrow-band approximation.
 
-    Exact 2x2 modal pencil, exact Lorentzian-free denominators, optional f^4
+    Exact 2x2 modal pencil and resonance denominators, optional f^4
     acceleration weighting, additive white measurement noise.
     """
     ws = 2 * np.pi * fref * np.sqrt(T / Tref)
@@ -711,14 +480,14 @@ def part5():
     print("PART 5  verification: numerical FIM by finite differences")
     print("=" * 78)
     print("""
-  The closed form is checked against the Hessian of the EXPECTED Whittle
+  The closed form is checked against the Hessian of the expected Whittle
   negative log likelihood,  L(th) = sum_k [ ln S_k(th) + S_k(th0)/S_k(th) ],
   whose Hessian at th0 is the Fisher information matrix exactly.  The check
-  model keeps everything the derivation dropped: the exact 2x2 pencil rather
-  than the leading-order veering formulae, exact resonance denominators rather
+  model retains every term the derivation omits: the exact 2x2 pencil rather
+  than the leading-order veering formulas, exact resonance denominators rather
   than Lorentzians, the f^4 acceleration weighting, a finite band and a finite
-  noise floor.  Disagreement therefore measures the leading-order model, not
-  the algebra.""")
+  noise floor.  A disagreement therefore reflects the leading-order model
+  rather than the algebra.""")
     Tref, fref = 151.6e3, 3.30
     Td, fs = 1800.0, 100.0
     band = (fref * 0.80, fref * 1.20)
@@ -788,22 +557,20 @@ def part5():
             sd_closed=cf_all, ratio=r1, sd_numeric_known=sd_known,
             sd_closed_known=cf_known, ratio_known=r2)
     print("""
-  The check is passed at the few per cent level wherever the leading-order
-  veering model is meant to apply.  The one large residual is the last row,
-  d = 0.20, where the detuning is twenty per cent and the exact pencil's
-  rho = 1 - O(s^2/d^2) differs from the leading-order rho in its SMALL part
-  1 - rho, which is what the host-frequency direction depends on; the
-  host-known column in the same row still agrees to 0.4 per cent.  That is
-  the model's error, not the algebra's, and it is confined to a regime the
-  model was never for.""")
-    print("\n  worst discrepancy %.3f (%.1f per cent), worst for |d| <= 0.05: "
+  The check agrees to a few percent wherever the leading-order veering model
+  applies.  The one large residual is the last row, d = 0.20, where the
+  detuning is twenty percent and the exact pencil's rho = 1 - O(s^2/d^2)
+  differs from the leading-order rho in its small part 1 - rho, on which the
+  host-frequency direction depends; the host-known column in the same row
+  still agrees to 0.4 percent.  This residual is an error of the
+  leading-order model, not of the algebra, and it lies outside the range the
+  model covers.""")
+    print("\n  worst discrepancy %.3f (%.1f percent), worst for |d| <= 0.05: "
           % (worst, 100 * worst) + "see table")
     return worst
 
 
-# ===========================================================================
-# PART 6  verification: Monte Carlo maximum likelihood
-# ===========================================================================
+# --- Part 6: check by Monte Carlo maximum likelihood ---
 
 def part6(nrep=400, seed=7):
     print()
@@ -815,10 +582,10 @@ def part6(nrep=400, seed=7):
     zeta, s, f0, Td = 0.005, 0.0234, 3.30, 1800.0
     Nc = f0 * Td
     df = 1.0 / Td
-    x = np.arange(-400.0, 400.0, df / (zeta * f0))     # +-2 Hz in half-widths
+    x = np.arange(-400.0, 400.0, df / (zeta * f0))     # +-400 half-widths
 
     def S_of(th):
-        """th = (x0, delta, sigma, ln P) ; sigma known-free, S_e = 0."""
+        """Model spectrum for th = (x0, delta, sigma, ln P), with S_e = 0."""
         x0, dl, sg, lnP = th
         u = np.hypot(dl, sg); rho = dl / u if u > 0 else 0.0
         xx = x - x0
@@ -836,9 +603,8 @@ def part6(nrep=400, seed=7):
                      options=dict(xatol=1e-7, fatol=1e-7, maxiter=8000, maxfev=8000))
         est.append(r.x)
     est = np.array(est)
-    # lnT = 4 x0 zeta ... : d = 2 zeta delta, ln f0 = zeta x0
-    #   lnT = 2 ln f0 ... solve (ln f0, d) <- (lnT, ln fh): lnT = 2 lnf0 + d ... :
-    #   [lnf0; d] = [[1/4,1/2],[1/2,-1]] [lnT; lnfh]  =>  lnT = 2 lnf0 + d
+    # ln f0 = zeta x0 and d = 2 zeta delta; inverting
+    # [ln f0; d] = [[1/4, 1/2], [1/2, -1]] [lnT; ln fh] gives lnT = 2 ln f0 + d
     lnT = 2 * (zeta * est[:, 0]) + 2 * zeta * est[:, 1]
     sd_mc = lnT.std(ddof=1)
     I = fim(1e-12, s, zeta)
@@ -855,9 +621,7 @@ def part6(nrep=400, seed=7):
     return sd_mc / cf
 
 
-# ===========================================================================
-# PART 7  verification: Au's single-mode uncertainty law, band factor included
-# ===========================================================================
+# --- Part 7: check against Au's single-mode uncertainty law ---
 
 def part7():
     print()
@@ -869,7 +633,7 @@ def part7():
   48:15-33, Eq. (15)-(16):  delta_f^2 ~ zeta/(2 pi N_c B_f(kappa)) with
   B_f(kappa) = (2/pi)(atan kappa - kappa/(kappa^2+1)), N_c = T_d f the data
   length in cycles and kappa the half-bandwidth in units of zeta f.  The
-  machinery of PART 1 applied to a single Lorentzian must reproduce this.""")
+  method of PART 1 applied to a single Lorentzian should reproduce this.""")
     kap = sp.Symbol('kappa', positive=True)
     xs = sp.Symbol('x')
     Jff = sp.integrate((2 * xs / (1 + xs ** 2)) ** 2, (xs, -kap, kap))
@@ -889,9 +653,7 @@ def part7():
     add("7", "Au_single_mode_law", match="exact")
 
 
-# ===========================================================================
-# PART 8  the screening criterion as an identifiability criterion
-# ===========================================================================
+# --- Part 8: screening criterion as a precision bound ---
 
 def part8(Ru_f):
     print()
@@ -899,7 +661,7 @@ def part8(Ru_f):
     print("PART 8  the screening criterion as a precision bound")
     print("=" * 78)
     print("""
-  The study screens with  |d| >= (s^2 - tol^2)/(2 tol),  which is exactly the
+  The screening criterion  |d| >= (s^2 - tol^2)/(2 tol)  is exactly the
   condition eps = sqrt(d^2+s^2) - |d| <= tol on the frequency bias.  Because
 
       1/|rho| = sqrt(d^2+s^2)/|d| = 1 + eps/|d|
@@ -907,7 +669,7 @@ def part8(Ru_f):
   the same quantity controls the variance.  With free modal force intensities
   (PART 4) the inflation is W(u)/rho^2 as rho -> 0 and (1/2)(1 + 1/rho^2) in
   the well-separated limit u >> 1, which is the form used below; at finite u
-  multiply by 2 W(u) from PART 4 (0.94 x 2 = 1.87 for the worked bridge).  On
+  multiply by 2 W(u) from PART 4 (0.94 x 2 = 1.87 for the example bridge).  On
   the screening boundary |d| = (s^2 - tol^2)/(2 tol),
 
       1/|rho| = (s^2 + tol^2)/(s^2 - tol^2)
@@ -916,9 +678,8 @@ def part8(Ru_f):
 
       Upsilon = (1/2)[ 1 + ((s^2+tol^2)/(s^2-tol^2))^2 ].
 
-  The criterion that bounds the bias to tol simultaneously bounds the
-  precision loss to Upsilon.  The two are not independent statements about
-  the crossing; they are the same statement read twice.""")
+  The criterion that bounds the bias to tol also bounds the precision loss
+  to Upsilon.""")
     print("\n  %8s %8s | %10s %10s %10s %10s" %
           ("s", "tol", "|d| min", "1/rho", "Upsilon", "sd factor"))
     for s in [0.0234, 0.05]:
@@ -933,27 +694,26 @@ def part8(Ru_f):
             add("8", "criterion", s=s, tol=tol, d_min=dmin, inv_rho=inv_rho,
                 Upsilon=ups, sd_factor=np.sqrt(ups))
     print("""
-  Read the other way.  Upsilon = (1/2)(1 + 1/rho^2) inverts to
-  1/rho^2 = 2 Upsilon - 1, and rho = |d|/sqrt(d^2+s^2) then gives
+  Inverted, Upsilon = (1/2)(1 + 1/rho^2) gives 1/rho^2 = 2 Upsilon - 1,
+  and rho = |d|/sqrt(d^2+s^2) then gives
 
-      |d| >= s / sqrt(2 (Upsilon - 1))            IDENTIFIABILITY CRITERION
+      |d| >= s / sqrt(2 (Upsilon - 1))            identifiability criterion
 
-  against the study's
+  against the screening
 
-      |d| >= (s^2 - tol^2)/(2 tol)                BIAS CRITERION
+      |d| >= (s^2 - tol^2)/(2 tol)                bias criterion
 
-  The two are different criteria with different scalings: the bias criterion
-  is s^2/(2 tol) for small tol and gets harder without limit as the tolerance
-  tightens; the identifiability criterion is a fixed multiple of s and does
-  not.  They cross where (s^2 - tol^2)/(2 tol) = s, that is at
+  The two criteria scale differently: the bias criterion is s^2/(2 tol) for
+  small tol and grows without limit as the tolerance tightens; the
+  identifiability criterion is a fixed multiple of s.  They cross where
+  (s^2 - tol^2)/(2 tol) = s, that is at
 
       tol = (sqrt 2 - 1) s = 0.414 s
 
-  so the BIAS criterion binds for any tolerance tighter than 0.414 s and the
-  IDENTIFIABILITY criterion binds for looser ones.  For s = 2.34 per cent
-  that crossover is tol = 0.97 per cent, which is squarely inside the range a
-  tension survey would actually specify, so neither criterion dominates and
-  both have to be checked.""")
+  so the bias criterion governs for any tolerance tighter than 0.414 s and
+  the identifiability criterion governs for looser ones.  For s = 2.34
+  percent the crossover is tol = 0.97 percent, which lies inside the range a
+  tension survey would specify, so both criteria have to be checked.""")
     print("\n    %9s %12s %14s" % ("Upsilon", "|d| >= .. s", "sd inflation"))
     for ups in [1.25, 1.5, 2.0, 5.0]:
         d_over_s = 1.0 / np.sqrt(2 * (ups - 1))
@@ -974,9 +734,7 @@ def part8(Ru_f):
                 binds="bias" if db > di else "identifiability")
 
 
-# ===========================================================================
-# PART 9  the finite element bridge: does it behave the way the model says
-# ===========================================================================
+# --- Part 9: the two channels in the finite-element bridge ---
 
 def part9():
     print()
@@ -1011,7 +769,7 @@ def part9():
     f0s, a0s = pair(T0)
     fmid = f0s.mean()
     s_fe = (f0s[1] - f0s[0]) / fmid
-    print("\n  worked bridge at T = %.1f kN:  f = %.5f, %.5f Hz" % (T0 / 1e3, *f0s))
+    print("\n  example bridge at T = %.1f kN:  f = %.5f, %.5f Hz" % (T0 / 1e3, *f0s))
     print("  split s = %.5f (%.3f %%), amplitude ratio at the stay sensor = %.4f"
           % (s_fe, 100 * s_fe, (a0s[1] / a0s[0]) ** 2))
 
@@ -1019,32 +777,32 @@ def part9():
     fp, ap = pair(T0 * (1 + h))
     fm, am = pair(T0 * (1 - h))
     dlnf = (np.log(fp) - np.log(fm)) / (2 * h)
-    print("\n  CHANNEL 1, level repulsion.  d ln f_j / d ln T from the model:")
+    print("\n  Channel 1, level repulsion.  d ln f_j / d ln T from the model:")
     print("    lower branch %.5f, upper branch %.5f, sum %.5f" %
           (dlnf[0], dlnf[1], dlnf.sum()))
-    print("    prediction (1 -+ rho)/4 each, summing to 1/2 whatever rho is;")
+    print("    prediction (1 -+ rho)/4 each, summing to 1/2 for any rho;")
     print("    an isolated stay would give 1/2 for its one mode, so each")
-    print("    branch responds at HALF the isolated rate.  The difference of")
+    print("    branch responds at half the isolated rate.  The difference of")
     print("    the two gives the operating point: rho = 2 (dlnf+ - dlnf-) = %.4f"
           % (2 * (dlnf[1] - dlnf[0])))
     rho_freq = 2 * (dlnf[1] - dlnf[0])
     print("    so T = %.1f kN is tuned to within d = rho s = %.5f (%.2f zeta"
           % (T0 / 1e3, rho_freq * s_fe, rho_freq * s_fe / 0.005))
-    print("    at zeta = 0.5 per cent), i.e. essentially exactly tuned.")
+    print("    at zeta = 0.5 percent), which is close to exact tuning.")
 
     Rp = (fp[1] - fp[0]) / fp.mean(); Rm = (fm[1] - fm[0]) / fm.mean()
     dR = (Rp - Rm) / (2 * h)
-    print("\n  does the veering width itself carry T?  The derivation assumes")
+    print("\n  Dependence of the veering width on T.  The derivation assumes")
     print("  s = (2/n pi) cos(theta) sqrt(mu_eff) has no T in it, so the only")
     print("  T dependence of the observed separation R = sqrt(d^2+s^2) is")
     print("  through d, giving dR/dlnT = rho/2 = %.5f." % (rho_freq / 2))
     print("  The model gives dR/dlnT = %.5f, ratio %.4f.  The observed drift"
           % (dR, dR / (rho_freq / 2)))
-    print("  of the split with tension is the detuning and nothing else.")
+    print("  of the split with tension comes from the detuning alone.")
     add("9", "fe_split_drift", dR_dlnT=dR, predicted=rho_freq / 2,
         ratio=dR / (rho_freq / 2))
 
-    print("\n  CHANNEL 2, amplitude asymmetry, and where the sensor is.")
+    print("\n  Channel 2, amplitude asymmetry against sensor position.")
     print("  %8s | %10s %10s %10s %10s" %
           ("s from", "rho at", "d rho/d lnT", "1/(2s)", "ratio"))
     print("  %8s | %10s %10s %10s %10s" %
@@ -1062,23 +820,21 @@ def part9():
         add("9", "fe_sensor_position", pos_m=pos, rho_sensor=r0, drho=drho,
             drho_pred=1 / (2 * s_fe), ratio=abs(drho) * 2 * s_fe)
     print("""
-  Read that table carefully, because it is not good news.  The asymmetry rho
-  measured at the sensor is cos 2(alpha - chi), not cos 2 alpha: the stay foot
-  moves with the deck, so a host mode puts motion into the stay directly, and
-  near the anchorage that direct term rotates the effective mixing angle by
-  chi.  At 12.5 m (mid chord) chi is negligible and the sensor reads the true
-  mixing.  At the 2 m station that field practice actually uses, rho is -0.25
-  when the true rho is %.3f: the sign is wrong and the magnitude is six times
-  too large.  The SENSITIVITY survives, only reduced by cos 2 chi (the last
-  column), so the information is nearly intact IF chi is known.  It is not
-  known in the field, and an unknown chi is exactly a free amplitude ratio,
-  which is the singular case of PART 4.
+  The asymmetry rho measured at the sensor is cos 2(alpha - chi), not
+  cos 2 alpha: the stay foot moves with the deck, so a host mode puts motion
+  into the stay directly, and near the anchorage that direct term rotates the
+  effective mixing angle by chi.  At 12.5 m (mid chord) chi is negligible and
+  the sensor reads the true mixing.  At the 2 m station used in field
+  practice, rho is -0.25 when the true rho is %.3f: the sign is reversed and
+  the magnitude is six times too large.  The sensitivity is reduced only by
+  cos 2 chi (the last column), so the information is nearly intact if chi is
+  known.  In the field chi is not known, and an unknown chi is equivalent to
+  a free amplitude ratio, the singular case of PART 4.
 
-  The practical consequence is specific and testable: to recover tension
-  through a crossing from one accelerometer, put it near mid chord, where the
-  amplitude balance is the mode mixing and nothing else.  At the usual station
-  a metre or two above the anchorage the tension is not identifiable at exact
-  tuning at all.""" % rho_freq)
+  To recover tension through a crossing from one accelerometer, the sensor
+  should be near mid chord, where the amplitude balance reflects the mode
+  mixing alone.  At the usual station one or two meters above the anchorage
+  the tension is not identifiable at exact tuning.""" % rho_freq)
     add("9", "fe_channels", s_fe=s_fe, dlnf_lo=dlnf[0], dlnf_hi=dlnf[1],
         dlnf_sum=dlnf.sum(), rho_freq=rho_freq)
 
@@ -1098,33 +854,30 @@ def part9():
                 sd_T_kN_unknown=cov_un * T0 / 1e3)
     cov_ref = np.sqrt(2 * 0.005 / (np.pi * fmid * 1800.0)
                       * np.sqrt(1 + (s_fe / 0.01) ** 2))
-    print("\n  against the bias.  At exact tuning the incumbent isolated-cable")
-    print("  inversion is displaced by 2 s = %.2f per cent in tension.  The"
+    print("\n  Against the bias.  At exact tuning the isolated-cable")
+    print("  inversion is displaced by 2 s = %.2f percent in tension.  The"
           % (200 * s_fe))
     print("  standard deviation the record allows, with the amplitude balance")
-    print("  pinned and everything else free, is %.3f per cent (zeta = 0.5 per"
+    print("  pinned and everything else free, is %.3f percent (zeta = 0.5"
           % (100 * cov_ref))
-    print("  cent, 30 minutes), so the bias exceeds the achievable noise by a")
-    print("  factor of %.0f.  With the amplitude balance NOT pinned the bound"
+    print("  percent, 30 minutes), so the bias exceeds the achievable noise by a")
+    print("  factor of %.0f.  With the amplitude balance not pinned the bound"
           % (2 * s_fe / cov_ref))
-    print("  is instead unbounded and the comparison does not arise: the")
-    print("  tension is simply not there to be had.")
+    print("  is unbounded and no comparison applies: the")
+    print("  tension is not identifiable.")
     add("9", "bias_vs_noise", bias_pct=200 * s_fe, cov_pct=100 * cov_ref,
         ratio=2 * s_fe / cov_ref)
 
 
 
-# ===========================================================================
-# PART 10  multi-sensor contrast: does a second accelerometer change it
-# ===========================================================================
+# --- Part 10: stay and deck sensors ---
 
 def _E2(x, th):
     """2x2 spectral density matrix for a stay sensor and a deck sensor.
 
-    th = (x0, delta, sigma, A_+, A_-, ln g2, S_e), with the stay-sensor gain
-    fixed at 1 to remove the trivial gain/intensity scale redundancy.  A_+ and
-    A_- are the two modal force intensities, FREE and unequal: this is the
-    hostile excitation case of PART 4, now with two sensors.
+    th = (x0, delta, sigma, A_+, A_-, ln g2, S_e). The stay-sensor gain is
+    fixed at 1 to remove the gain/intensity scale redundancy; A_+ and A_- are
+    free modal force intensities, as in Part 4.
     """
     x0, dl, sg, Ap, Am, lng2, Se = th
     u = np.hypot(dl, sg)
@@ -1144,9 +897,9 @@ def part10():
     print("PART 10  multi-sensor contrast")
     print("=" * 78)
     print("""
-  One accelerometer on the stay is the practically relevant case and is what
+  One accelerometer on the stay is the case used in practice and is what
   everything above assumes.  A second accelerometer on the deck changes the
-  picture qualitatively, not just quantitatively, and it is worth saying why.
+  result qualitatively, for the following reason.
 
   With one sensor the two hybrid modes contribute two numbers, their peak
   strengths, and the mixing angle can only be read off them if the modal force
@@ -1156,9 +909,9 @@ def part10():
       (deck/stay of mode +) x (deck/stay of mode -) = -(g2/g1)^2
       (deck/stay of mode +) / (deck/stay of mode -) = -tan^2 alpha
 
-  and alpha is recovered from the shapes WITHOUT knowing either gain and
-  WITHOUT any assumption about the excitation.  The orthogonality of the two
-  hybrid shapes is doing the work that the equal-force assumption did before.
+  and alpha is recovered from the shapes without knowing either gain and
+  without any assumption about the excitation.  The orthogonality of the two
+  hybrid shapes takes the place of the equal-force assumption.
 
   The bound below is the CRB on ln T with everything free: both frequencies,
   the split, the two modal force intensities, the gain ratio and the noise.""")
@@ -1190,7 +943,7 @@ def part10():
         Ip = TM10.T @ I @ TM10
         return np.linalg.inv(Ip)[0, 0] / ref
 
-    print("\n  CRB(lnT) / CRB_far, TWO sensors, everything free")
+    print("\n  CRB(lnT) / CRB_far, two sensors, everything free")
     print("  %9s | %10s %10s %10s %10s %10s" %
           ("s/zeta", "d/z=50", "d/z=10", "d/z=2", "d/z=0.2", "d/z=0"))
     for sz in [0.5, 2.0, 4.68, 10.0, 30.0]:
@@ -1200,19 +953,16 @@ def part10():
             R_d2=row[2], R_d02=row[3], R_d0=row[4])
     print("""
   The bound is 1 everywhere, to five figures, independent of the split and of
-  the detuning: with both constituents instrumented the crossing costs NOTHING
-  at all, and the tension is recovered as precisely as from a stay that never
-  met a deck mode.  That is the sharpest available statement of what the
-  single-sensor problem is short of.  It is not a statement about information
-  in the structure; it is a statement about where the sensor is.""")
+  the detuning: with both the stay and the deck instrumented the crossing adds
+  no variance, and the tension is recovered as precisely as from a stay far
+  from any deck mode.  The single-sensor loss therefore follows from sensor
+  placement, not from the information in the structure.""")
     for Se in [1e-9, 1e-6, 1e-4]:
         print("    noise floor S_e/peak = %.0e :  R at exact tuning = %.5f"
               % (Se, bound(1e-9 * zeta, 4.68 * zeta, Se)))
         add("10", "two_sensor_noise", Se=Se,
             R=bound(1e-9 * zeta, 4.68 * zeta, Se))
 
-
-# ===========================================================================
 
 def main():
     print(__doc__.split("Run:")[0])
@@ -1240,8 +990,8 @@ def main():
         for r in ROWS:
             wr.writerow(r)
     print("\nwrote %s (%d rows)" % (CSV, len(ROWS)))
-    print("\nSUMMARY")
-    print("  finite-difference FIM agrees with the closed form to %.1f per cent"
+    print("\nSummary")
+    print("  finite-difference FIM agrees with the closed form to %.1f percent"
           % (100 * w5))
     print("  Monte Carlo MLE / CRB = %.3f" % r6)
 

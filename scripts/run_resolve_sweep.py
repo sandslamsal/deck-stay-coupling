@@ -1,30 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Revision 1, R1.8: resolvability of the veering pair when the two branches
-carry unequal residues and unequal damping.
+"""Resolvability of the veering pair with unequal residues and unequal damping.
 
-Appendix B derives the dip-existence threshold u > sqrt(sqrt5 - 2) and the
-3 dB threshold u > 1.14 for two resonances of EQUAL residue and EQUAL
-damping, and Section 5 quotes the population fractions that follow. This
-script drops both equalities. In units of the mean damping zeta_bar and
-with the pair centred at x = 0,
-
-    H(x) = 1 / (x + u + i a)  +  rho / (x - u + i b),
-    a = zeta_1 / zeta_bar = 2 / (1 + kappa),   b = kappa a,   kappa = zeta_2 / zeta_1,
-    u = s / (2 zeta_bar),
-
-and the smallest u at which |H|^2 shows two maxima (dip exists) and two
-maxima with a 3 dB dip (a peak picker acts) is found by bisection for a
-grid of residue ratios rho and damping ratios kappa. The population
-fractions of the graded campaign that are unresolvable at zeta_bar = 0.2,
-0.5, 1 and 2 per cent follow from each threshold.
-
-Nothing here assumes the direction of the answer. Unequal residues are
-expected to merge the pair earlier; unequal damping is not obvious, since
-the sharper of the two resonances can stand as a separate maximum on the
-flank of the broader one.
-
-Writes data/resolve_sweep.csv.
-
+H(x) = 1/(x + u + i a) + rho/(x - u + i b) in units of the mean damping
+zeta_bar, with a = 2/(1 + kappa), b = kappa a, kappa = zeta_2/zeta_1 and
+u = s/(2 zeta_bar). Bisection finds, for each (rho, kappa), the smallest u at
+which |H|^2 has two maxima (dip exists) and a 3 dB dip, and the fraction of
+graded parametric-study designs left unresolvable at each zeta_bar.
+Reads data/campaign.csv; writes data/resolve_sweep.csv.
 Run:  python3 scripts/run_resolve_sweep.py
 """
 from __future__ import annotations
@@ -46,6 +28,7 @@ U_DIP_EQUAL = np.sqrt(np.sqrt(5.0) - 2.0)
 
 
 def hmag2(x, u, rho, kappa):
+    """|H(x)|^2 for residue ratio rho and damping ratio kappa."""
     a = 2.0 / (1.0 + kappa)
     b = kappa * a
     return np.abs(1.0 / (x + u + 1j * a) + rho / (x - u + 1j * b)) ** 2
@@ -65,6 +48,7 @@ def census(u, rho, kappa):
 
 
 def bisect(pred, lo, hi, it=36):
+    """Point in [lo, hi] where pred turns from false to true."""
     assert not pred(lo) and pred(hi), "predicate not bracketed"
     for _ in range(it):
         mid = 0.5 * (lo + hi)
@@ -73,6 +57,7 @@ def bisect(pred, lo, hi, it=36):
 
 
 def thresholds(rho, kappa):
+    """Smallest u at which the dip exists and at which it reaches 3 dB."""
     u_dip = bisect(lambda u: census(u, rho, kappa)[0] >= 2, 0.02, 12.0)
     u_3db = bisect(lambda u: census(u, rho, kappa)[1] >= 3.0, u_dip, 20.0)
     return u_dip, u_3db
@@ -83,12 +68,12 @@ def main():
     g = c[(c.mac > 0.5) & (c.xi > 150)]
     s = g.s.to_numpy()
 
-    # the equal case must reproduce Appendix B before anything else is trusted
+    # check: the equal case reproduces the closed-form thresholds
     u_dip, u_3db = thresholds(1.0, 1.0)
     assert abs(u_dip - U_DIP_EQUAL) < 2e-3, (u_dip, U_DIP_EQUAL)
     assert abs(u_3db - 1.1398) < 3e-3, u_3db
     print(f"equal residues and damping: u_dip = {u_dip:.4f} (closed form "
-          f"{U_DIP_EQUAL:.4f}), u_3db = {u_3db:.4f} (Appendix B 1.1398)")
+          f"{U_DIP_EQUAL:.4f}), u_3db = {u_3db:.4f} (closed form 1.1398)")
 
     rows = []
     for rho in RHOS:
@@ -111,7 +96,7 @@ def main():
         print(f"  {lab:10s}: {out[col].min():.3f} to {out[col].max():.3f}"
               f"  (equal case {out[(out.rho == 1) & (out.kappa == 1)][col].iloc[0]:.3f})")
     lower = (out.u_dip < U_DIP_EQUAL - 1e-3).sum()
-    print(f"  cases where the dip survives to SMALLER u than the equal case: {lower} of {len(out)}")
+    print(f"  cases where the dip survives to smaller u than the equal case: {lower} of {len(out)}")
     print("wrote", os.path.join(DATA, "resolve_sweep.csv"))
 
 

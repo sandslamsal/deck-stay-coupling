@@ -1,26 +1,13 @@
 # -*- coding: utf-8 -*-
-"""Revision 1, R1.4 and R1.5/R2.2: what the campaign says below the xi gate
-and across Irvine's parameter.
+"""Tension error below the xi = 150 gate and across Irvine's lambda^2.
 
-Reads data/campaign.csv (all 699 admissible designs) and asks two questions
-the reviewers raised.
+Reads data/campaign.csv. Inverts the coupled branch frequency with the exact
+tensioned-beam form T = 4 m L^2 f^2 / n^2 - n^2 pi^2 EI / L^2, compares the
+residual with eps = sqrt(d^2 + s^2) - |d|, checks that bending and coupling
+errors superpose, and bins the graded designs by lambda^2. Writes
+data/xi_combined.csv and data/xi_combined_summary.csv.
 
-R1.4  Below xi = 150 the taut-string formula carries a bending-stiffness bias
-      of its own. The stay in the coupled model is a pinned-pinned tensioned
-      beam, so the exact inversion T = 4 m L^2 f^2 / n^2 - n^2 pi^2 EI / L^2
-      removes that bias entirely on the isolated control (checked here to
-      machine precision). Applied to the COUPLED branch frequency it leaves
-      the coupling bias alone. Does that residual follow the closed form
-      eps = sqrt(d^2 + s^2) - |d| on the 278 sub-gate designs, and does the
-      total error superpose as eps_bend + eps_coupling?
-
-R1.5  The graded population was computed with a straight chord. Irvine's
-R2.2  lambda^2 evaluated on each design's geometry says how many of them a
-      real bridge would carry as sag-affected, and whether the collapse
-      depends on that.
-
-Writes data/xi_combined.csv (per design) and data/xi_combined_summary.csv
-(the numbers quoted in the manuscript and the response letter).
+Run:  python3 scripts/run_xi_combined.py
 """
 import os
 import sys
@@ -44,11 +31,7 @@ def r2(y, yhat):
 def main():
     c = pd.read_csv(os.path.join(DATA, "campaign.csv"))
     n, L, m, EI, T = c.n_stay, c.Lc, c.mc, c.EIc, c["T"]
-    # the campaign's lam2 column was written with the horizontal-projection
-    # form, which overstates an inclined cable's parameter by 1/cos^3(theta);
-    # the chord form (cablefe.irvine_lambda2, corrected 2026-09-27 and
-    # verified by cablefe2d against Irvine) is used for every figure here
-    c["lam2_submitted"] = c.lam2
+    # Irvine's parameter in the chord form
     c["lam2"] = irvine_lambda2(c.Lc, c["T"], c.EA, c.mc, c.theta)
 
     # exact pinned-pinned tensioned-beam inversion of the coupled branch

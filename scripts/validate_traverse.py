@@ -1,28 +1,13 @@
 # -*- coding: utf-8 -*-
-"""The damper traverse: a measured crossing on the Ponte del Mare.
+"""Veering split measured from the damper traverse on the Ponte del Mare.
 
-Kumar (2011) tested the bridge twice, on consecutive days, without and with
-its vibration dampers. The dampers act between deck and ground and between
-the mast back-stays and the deck; they do not touch stay N8E. At low
-amplitude they behave as springs, and they raised the first global
-frequency from 0.75 Hz to 0.93 Hz with the mode shape essentially unchanged
-(MAC 0.97).
-
-Stay N8E's fundamental sits at about 0.83 Hz, BETWEEN those two values. The
-damper installation therefore carried a global mode straight through a stay
-frequency, one day apart, at constant stay tension. That is a traverse of a
-crossing performed on a real bridge, with the stay's line recorded on both
-sides of it, and it makes the veering width measurable.
-
-Prediction. The stay-dominated branch is pushed AWAY from the global mode:
-upward while the global mode is below it, downward once the global mode is
-above it. So the stay's line must MOVE DOWN when the dampers are fitted,
-whatever the value of the coupling. That sign test needs no calibration.
-
-Measurement. Given the line's position on both sides, the pair
-    f_obs = f_iso + sign(D)/2 * (sqrt(D^2 + (s f_iso)^2) - |D|),  D = f_iso - f_deck
-is two equations in the two unknowns f_iso and s, so s is measured, and
-mu_eff follows from s = (2/(n pi)) cos(theta) sqrt(mu_eff).
+Kumar (2011) tested the footbridge without and with dampers, which moved
+global mode 1 from 0.75 to 0.93 Hz, past stay N8E at about 0.83 Hz. The stay
+line on both days gives f_iso and the split s from
+    f_obs = f_iso + sign(D)/2 * (sqrt(D^2 + (s f_iso)^2) - |D|),  D = f_iso - f_deck,
+and mu_eff = (s n pi / (2 cos(theta)))^2. Also prints the sign test (the stay
+line must move down) and a mode-shape estimate of mu_eff. Writes
+data/traverse.csv.
 
 Run:  python3 scripts/validate_traverse.py
 """
@@ -35,6 +20,7 @@ from scipy.optimize import brentq
 FD_NO, FD_YES = 0.750, 0.930          # global mode 1, without / with dampers
 # Values transcribed from Kumar (2011), PhD thesis, University of Trento (Ponte del Mare footbridge). They are not redistributed with
 # this code: they live in data/external/validate_traverse_data.py (see README).
+# READ_NO and READ_YES are pixel reads of the N8E line in the deck records.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), "data", "external"))
 try:
@@ -46,13 +32,14 @@ except ImportError as exc:
                      "See README, 'Third-party data'.") from exc
 N = 1
 
-# Pixel reads of the N8E line in the DECK records (miner, 1200-2400 dpi)
 
 def f_obs(f_iso, f_deck, s):
+    """Stay-branch frequency for isolated stay f_iso, deck mode f_deck, split s."""
     D = f_iso - f_deck
     return f_iso + 0.5*np.sign(D)*(np.sqrt(D*D + (s*f_iso)**2) - abs(D))
 
 def solve(o_no, o_yes):
+    """Split s and f_iso from the stay line without and with dampers."""
     def resid(s):
         fi = brentq(lambda f: f_obs(f, FD_NO, s) - o_no, 0.70, 0.95)
         return f_obs(fi, FD_YES, s) - o_yes
@@ -90,7 +77,7 @@ print("  isolated stay frequency f_iso  : %.4f - %.4f Hz" % (d.f_iso.min(), d.f_
 print("  measured split s               : %.2f - %.2f %%" % (100*d.s.min(), 100*d.s.max()))
 print("  measured mu_eff                : %.2e - %.2e" % (d.mu_eff.min(), d.mu_eff.max()))
 print()
-# independent structural estimate, from mode shape ordinate and modal mass
+# mu_eff from the mode-1 ordinate at N8E and the deck modal mass, M_s phi_a^2
 print("="*76)
 print("  INDEPENDENT STRUCTURAL ESTIMATE (mode shape + modal mass)")
 print("="*76)

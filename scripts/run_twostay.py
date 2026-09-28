@@ -1,36 +1,13 @@
 # -*- coding: utf-8 -*-
-"""Two stays sharing one deck: does the single-stay veering law survive?
+"""Two stays on one deck: veering width against the single-stay law
+s = (2/(n pi)) cos(theta) sqrt(mu_eff), with mu_eff from the deck-alone mode
+carrying both axial springs.
 
-Every result so far comes from a deck carrying ONE stay.  A real fan of
-stays loads the deck at several anchorages at once, so two questions decide
-whether the closed form ``s = (2/(n pi)) cos(theta) sqrt(mu_eff)`` is usable
-on a real bridge:
-
-1.  With a second, detuned stay present, does ``mu_eff`` computed from the
-    deck-alone mode (deck + BOTH axial springs) still predict the first
-    stay's veering split?
-2.  When both stays tune to the SAME deck mode, what replaces the two-mode
-    veering pair?  Degenerate perturbation theory says three modes: a dark
-    stay-only combination left at the tuned frequency and a bright pair
-    split by the root-sum-square ``sqrt(s_A^2 + s_B^2)``.
-
-Assembly follows ``CableDeck._assemble`` exactly, generalised: each stay
-adds its axial spring ``EA/Lc sin^2(theta)`` at its own anchorage node and
-its own transverse tie ``v_bottom = cos(theta) w_deck(x_anchor)`` through
-one dependent DOF per stay in the constraint matrix.  Verified against
-``CableDeck`` itself before use: with stay B's tie factor zeroed
-(theta_B = 90 deg) and its axial spring removed (EA_B = 0; sin^2(90 deg)
-would otherwise leave the spring at FULL value, so zeroing theta alone does
-not decouple the stay) the assembly must reproduce the single-stay coupled
-spectrum to < 0.1 %.
-
-Bridge: the BRIDGE deck of run_identify2.py.  Stay A is the standard stay
-anchored at 0.30 L_d; stay B is identical, anchored at 0.55 L_d.  Stay A
-sweeps 120-200 kN with stay B (a) detuned at 400 kN and (b) tuned to the
-deck mode A crosses.  Writes data/twostay.csv (one row per mode per sweep
-point inside the band).
-
-Run:  python3 scripts/run_twostay.py
+Stay A (at 0.30 L_d) sweeps 120 to 200 kN with an identical stay B (at 0.55 L_d)
+(a) detuned at 400 kN and (b) tuned to the deck mode A crosses. With both stays
+tuned, the outer split of the three coupled modes is compared with
+sqrt(s_A^2 + s_B^2). The assembly is checked against CableDeck first.
+Writes data/twostay.csv.  Run:  python3 scripts/run_twostay.py
 """
 
 from __future__ import annotations
@@ -63,18 +40,17 @@ N_STAY = 1
 
 
 def stay(xfrac, T, EA=STAY["EA"], theta=STAY["theta"]):
+    """Stay parameters for TwoStayDeck: anchorage at xfrac L_d, tension T (N)."""
     return dict(Lc=STAY["Lc"], EIc=STAY["EIc"], mc=STAY["mc"],
                 nc=STAY["nc"], EA=EA, theta=theta, T=T, xfrac=xfrac)
 
 
 class TwoStayDeck:
-    """One deck, several stays, assembled the way CableDeck assembles one.
+    """One deck with several stays, assembled as in ``CableDeck._assemble``.
 
-    Components are block-diagonal chains; each stay then enters the deck
-    problem twice, exactly as in ``CableDeck._assemble``: its axial spring
-    ``EA/Lc sin^2(theta)`` at its own anchorage node, and its transverse tie
-    ``v_bottom = cos(theta) w_deck(x_anchor)`` imposed through one dependent
-    DOF per stay in the constraint matrix.
+    Each stay adds its axial spring ``EA/Lc sin^2(theta)`` at its anchorage
+    node and its transverse tie ``v_bottom = cos(theta) w_deck(x_anchor)``
+    through one dependent DOF in the constraint matrix.
     """
 
     def __init__(self, Ld, EId, md, nd, stays):
@@ -106,9 +82,8 @@ class TwoStayDeck:
             s["k_ax"] = s["EA"] / s["Lc"] * np.sin(s["theta"]) ** 2
             K[2 * ia, 2 * ia] += s["k_ax"]
 
-        # constraints: deck simply supported, each stay's top transverse
-        # DOF held at the pylon, each stay's bottom transverse DOF slaved
-        # to the deck at its own anchorage through its own inclination
+        # constraints: deck simply supported, stay tops held at the pylon,
+        # stay bottoms slaved to the deck through cos(theta)
         fixed = {0, 2 * self.nd}
         deps = {}
         for s, off in zip(self.stays, offs[1:]):
@@ -132,7 +107,7 @@ class TwoStayDeck:
         self._Mfull = M                     # block-diagonal, for energies
 
     def modes(self, nmodes=40):
-        """Mass-normalised modes, full-DOF shapes, f in Hz ascending."""
+        """Mass-normalized modes, full-DOF shapes, f in Hz ascending."""
         w2, V = eigh(self.K, self.M)
         w2 = np.maximum(w2, 0.0)
         f = np.sqrt(w2) / (2.0 * np.pi)
@@ -151,7 +126,7 @@ class TwoStayDeck:
         return out / np.where(tot > 0, tot, 1.0)
 
     def deck_alone(self, nmodes=12):
-        """Deck with EVERY stay's axial spring, mass-normalised.
+        """Deck alone with every stay's axial spring, mass-normalized.
 
         Returns ``(f, phi)``, ``phi[i, k]`` the mode-k amplitude at the
         anchorage of stay ``i``.
@@ -169,21 +144,18 @@ class TwoStayDeck:
         return f[:nmodes], phi[:, :nmodes]
 
 
-# ---------------------------------------------------------------------------
-# verification before use
-# ---------------------------------------------------------------------------
+# --- verification ---
 
 def verify_assembly():
+    """Check the two-stay assembly against CableDeck; True if all checks pass."""
     print("=" * 74)
     print("V   two-stay assembly against the verified single-stay model")
     print("=" * 74)
     ok = True
 
-    # V1: stay B fully decoupled (tie factor cos(90 deg) = 0, and EA_B = 0
-    # because sin^2(90 deg) would otherwise leave the axial spring at full
-    # value).  Stay B then contributes only its own pinned-pinned modes,
-    # filtered out by their energy fraction, and the rest of the spectrum
-    # must be CableDeck's for stay A alone.
+    # V1: stay B decoupled (theta_B = 90 deg zeroes the tie, EA_B = 0 removes
+    # the axial spring); with stay B's own modes filtered out by energy, the
+    # spectrum must match CableDeck for stay A alone
     T_A = 150e3
     ref = CableDeck(Ld=DECK["Ld"], EId=DECK["EId"], md=DECK["md"],
                     Lc=STAY["Lc"], EIc=STAY["EIc"], mc=STAY["mc"],
@@ -228,12 +200,10 @@ def verify_assembly():
     return ok
 
 
-# ---------------------------------------------------------------------------
-# hybrid extraction
-# ---------------------------------------------------------------------------
+# --- hybrid extraction ---
 
 def hybrid_pair(f, eA, f_dk):
-    """The two modes near the deck mode carrying stay A motion."""
+    """Frequencies of the two modes near the deck mode with the most stay-A energy."""
     cand = np.where((np.abs(f / f_dk - 1.0) < WINDOW) & (eA > 0.02))[0]
     if len(cand) < 2:
         return None
@@ -242,7 +212,7 @@ def hybrid_pair(f, eA, f_dk):
 
 
 def hybrid_triplet(f, eA, eB, f_dk):
-    """The three modes near the deck mode carrying stay motion."""
+    """Indices of the three modes near the deck mode with the most stay energy."""
     cand = np.where((np.abs(f / f_dk - 1.0) < WINDOW)
                     & (eA + eB > 0.02))[0]
     if len(cand) < 3:
@@ -252,6 +222,7 @@ def hybrid_triplet(f, eA, eB, f_dk):
 
 
 def solve(T_A, T_B):
+    """Frequencies and energy fractions (deck, A, B) for stay tensions T_A, T_B."""
     two = TwoStayDeck(stays=[stay(XFRAC_A, T_A),
                              stay(XFRAC_B, T_B)], **DECK)
     f, Phi = two.modes(60)
@@ -259,19 +230,17 @@ def solve(T_A, T_B):
     return f, e
 
 
-# ---------------------------------------------------------------------------
-# main study
-# ---------------------------------------------------------------------------
+# --- main study ---
 
 def main():
     if not verify_assembly():
-        print("ASSEMBLY IS WRONG, FIX BEFORE USE")
+        print("ASSEMBLY CHECK FAILED")
         return 1
 
     Lc, EIc, mc = STAY["Lc"], STAY["EIc"], STAY["mc"]
     theta = STAY["theta"]
 
-    # ---- deck-alone reference with BOTH axial springs -------------------
+    # --- deck-alone reference with both axial springs ---
     two0 = TwoStayDeck(stays=[stay(XFRAC_A, 150e3),
                               stay(XFRAC_B, T_B_DETUNED)], **DECK)
     fd, phi = two0.deck_alone(10)
@@ -282,16 +251,16 @@ def main():
     print("=" * 74)
     print("D   deck-alone modes (both axial springs), anchorage amplitudes")
     print("=" * 74)
-    print(f"  stay A mode 1 sweeps {f1_lo:.3f} -> {f1_hi:.3f} Hz")
+    print(f"  stay A mode 1 spans {f1_lo:.3f} to {f1_hi:.3f} Hz")
     for k in range(len(fd)):
-        mark = "  <-- in sweep window" if f1_lo < fd[k] < f1_hi else ""
+        mark = "  <-- within stay A range" if f1_lo < fd[k] < f1_hi else ""
         print(f"  mode {k + 1}: {fd[k]:8.4f} Hz   phi(x_A)={phi[0, k]:+.5f}"
               f"   phi(x_B)={phi[1, k]:+.5f}{mark}")
     cand = np.where((fd > f1_lo) & (fd < f1_hi))[0]
     j = int(cand[np.argmax(np.abs(phi[0, cand]))])
     f_dk, phiA, phiB = float(fd[j]), float(phi[0, j]), float(phi[1, j])
 
-    # ---- predictions ----------------------------------------------------
+    # --- predictions ---
     M_stay = mc * Lc / 2.0
     mu_A = mu_effective(M_stay, phiA)
     mu_B = mu_effective(M_stay, phiB)
@@ -323,18 +292,17 @@ def main():
                              e_B=float(e[2, jj]), f_sA=fsA, f_sB=fsB,
                              f_deck=f_dk))
 
-    # ---- case (a): stay B detuned at 400 kN -----------------------------
+    # --- case (a): stay B detuned at 400 kN ---
     print()
     print("=" * 74)
-    print("A   sweep with stay B detuned at 400 kN")
+    print("A   stay A tension varied, stay B detuned at 400 kN")
     print("=" * 74)
     for T_A in T_SWEEP:
         f, e = solve(T_A, T_B_DETUNED)
         record("detuned", float(T_A), T_B_DETUNED, f, e)
 
-    # measured split: gap at the analytic tuning tension, and the minimum
-    # gap over a fine scan (the tie of the second stay shifts the true
-    # crossing slightly off T*)
+    # measured split: gap at T*, and the minimum gap over a fine scan
+    # (stay B's tie shifts the crossing slightly off T*)
     f, e = solve(T_star, T_B_DETUNED)
     pr = hybrid_pair(f, e[1], f_dk)
     s_at_star = float((pr[1] - pr[0]) / f_dk)
@@ -359,17 +327,17 @@ def main():
     print(f"  measured / predicted          : {s_meas / s_A:.4f}  "
           f"({100 * (s_meas / s_A - 1):+.2f} %)")
 
-    # ---- case (b): stay B tuned to the crossed deck mode ----------------
+    # --- case (b): stay B tuned to the crossed deck mode ---
     print()
     print("=" * 74)
-    print("B   sweep with stay B tuned to the same deck mode "
+    print("B   stay A tension varied, stay B tuned to the same deck mode "
           f"(T_B = {T_star / 1e3:.2f} kN)")
     print("=" * 74)
     for T_A in T_SWEEP:
         f, e = solve(T_A, T_star)
         record("tuned", float(T_A), float(T_star), f, e)
 
-    # ---- both stays at exact tuning: the three-mode structure -----------
+    # --- both stays at exact tuning: three coupled modes ---
     f, e = solve(T_star, T_star)
     record("double", float(T_star), float(T_star), f, e)
     tri = hybrid_triplet(f, e[1], e[2], f_dk)
@@ -410,7 +378,7 @@ def main():
           f"(f = {ft_min[0]:.4f}, {ft_min[1]:.4f}, {ft_min[2]:.4f} Hz)")
     print(f"    vs sqrt(s_A^2 + s_B^2)      : {s_outer_min / s_AB:.4f}")
 
-    # ---- write ----------------------------------------------------------
+    # --- write ---
     os.makedirs(DATA, exist_ok=True)
     out = os.path.join(DATA, "twostay.csv")
     pd.DataFrame(rows).to_csv(out, index=False)

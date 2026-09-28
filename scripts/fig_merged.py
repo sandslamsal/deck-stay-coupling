@@ -1,24 +1,11 @@
 # -*- coding: utf-8 -*-
-"""The bias when the crossing cannot be seen: the merged-peak law.
+"""Figure of the merged-peak law: the reading when the pair is not resolved.
 
-The paper's branch law answers what a reading costs when the two hybrids are
-resolved and one of them is picked. On a damped stay that is the minority
-case: Eq. (10) shows the pair usually merges into a single peak, and it is
-that peak the analyst picks. This figure carries the law for it.
-
-Writing the pair as two Lorentzians of residue ratio rho, in frequency
-measured from the pair centre in units of zeta*omega_0,
-
-    H(x) = A1/(x + u + i) + A2/(x - u + i),      u = s/2 zeta,  rho = A2/A1
-
-the observed maximum sits at x*, and the fraction of the half split it
-reaches is k = x*/u. Two limits are forced: k -> +-1 as u -> infinity, which
-is the branch law, and k -> (rho-1)/(rho+1) as u -> 0. What is not obvious,
-and is the point of panel (a), is that k OVERSHOOTS unity in between. The
-merged peak sits outside the pair, not between it, so the branch law is a
-lower bound on the bias rather than an upper one.
-
-Run:  python3 scripts/fig_merged.py
+Panel (a): k = |x*|/u, the fraction of the half split reached by the maximum
+of H(x) = A1/(x + u + i) + A2/(x - u + i), with u = s/2 zeta and rho = A2/A1.
+Panel (b): branch-law and merged-peak tension errors on the example bridge,
+from data/merged.csv. Writes fig_merged.png and fig_merged.pdf to OUT.
+Run: python3 scripts/fig_merged.py
 """
 
 from __future__ import annotations
@@ -38,7 +25,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.lines import Line2D  # noqa: E402
 
 DATA = os.path.join(ROOT, "data")
-OUT = os.path.join(ROOT, "revision 1", "sources", "figures")
+OUT = os.environ.get("FIGURE_DIR", os.path.join(ROOT, "figures"))
 
 U_SPLIT = np.sqrt(np.sqrt(5.0) - 2.0)          # 0.4859, the same root as the dip
 
@@ -46,12 +33,8 @@ U_SPLIT = np.sqrt(np.sqrt(5.0) - 2.0)          # 0.4859, the same root as the di
 def peak_offset(u, rho, ngrid=200001, span=3.0):
     """|x*| at the maximum of |H|^2, by dense scan.
 
-    The quintic that x* satisfies has up to five roots; scanning is slower but
-    cannot pick the wrong one, and the grid is fine enough that the residual
-    against the quintic is below 1e-5 in x. The magnitude is what is plotted:
-    the peak always moves toward the larger-residue branch, so the sign is
-    carried by rho and is a coin toss at rho = 1, where the response is even
-    in x and the two maxima are exactly equal.
+    The scan avoids choosing among the up to five roots of the quintic for x*.
+    The sign is dropped; the peak moves toward the larger-residue branch.
     """
     x = np.linspace(-span * max(u, 1.0), span * max(u, 1.0), ngrid)
     S, D = 1.0 + rho, rho - 1.0
@@ -73,8 +56,7 @@ def main():
     a1.axhline(1.0, color=F.GRAY, lw=0.9, ls=(0, (2, 2)), zorder=0)
     a1.axvline(U_SPLIT, color=F.GRAY, lw=0.9, ls=(0, (1, 2)), zorder=0)
     a1.set_xscale("log")
-    # explicit ticks: matplotlib's log formatter prints exponents below the
-    # figure's minimum legible size, and it emits labels outside the view
+    # explicit ticks; the default log formatter prints small exponent labels
     a1.set_xticks([0.1, 0.3, 1.0, 3.0, 10.0])
     a1.set_xticklabels(["0.1", "0.3", "1", "3", "10"])
     a1.set_xticks([], minor=True)
@@ -86,7 +68,7 @@ def main():
     a1.legend(loc="lower right", fontsize=9.0, labelspacing=0.22, frameon=False)
     F.panel(a1, "a", "displacement of the merged peak")
 
-    # ---- (b) what it costs on the worked bridge --------------------------
+    # ---- (b) what it costs on the example bridge --------------------------
     m = pd.read_csv(os.path.join(DATA, "merged.csv"))
     T = m.T_true.unique()
     b = m[m.zeta == m.zeta.min()]
@@ -129,7 +111,7 @@ def main():
         g = m[np.isclose(m.zeta, z)]
         gm = g[~g.resolved_bool]
         print(f"  zeta = {100*z:.1f} %: worst merged {g.eps_merged_pct.abs().max():.3f} %"
-              f"   (genuinely merged rows only: "
+              f"   (unresolved rows only: "
               f"{gm.eps_merged_pct.abs().max() if len(gm) else float('nan'):.3f} %)")
     print(f"  worst branch {m.eps_branch_pct.abs().max():.3f} %,"
           f"  worst wrong branch {m.eps_wrong_pct.abs().max():.3f} %")

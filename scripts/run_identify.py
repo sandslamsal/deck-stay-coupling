@@ -1,28 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Identification study: where the bias lives, and what actually removes it.
+"""Tension identification on synthetic records either side of a crossing.
 
-Four estimators on identical synthetic records, across a range of detunings
-either side of a crossing.
-
-  string_n1     incumbent taut-string inversion on stay mode 1
-  iso_exact     exact isolated tensioned beam on the same single frequency
-  pinn_iso      physics-informed net, ISOLATED residual, v(L) = 0
-  pinn_cpl      the same net with the coupled Robin end condition and an
-                identified deck impedance
-  multi_iso     ISOLATED multi-mode least squares over orders 1 to 5
-  multi_cpl     closed-form coupled multi-mode fit
-
-Two questions are answered separately, and they have different answers.
-
-  Q1  With ONE mode order, does carrying the coupled boundary condition
-      remove the bias?  This is where the physics claim is tested, and it is
-      the case a published cable-force PINN addresses.
-  Q2  With SEVERAL mode orders, does the coupled treatment still help?
-      Because the split falls as 1/n the higher orders are nearly clean, so
-      the answer may be no, and if it is no the honest recommendation is to
-      use several orders rather than a more elaborate estimator.
-
-Writes data/identify.csv.
+Compares six methods on the same records: string_n1 (taut-string inversion
+of stay mode 1), iso_exact (exact isolated tensioned beam), pinn_iso and
+pinn_cpl (physics-informed network with the isolated or the coupled Robin
+end condition), and multi_iso and multi_cpl (isolated and coupled multi-mode
+fits over orders 1 to 5). Writes data/identify.csv.
 
 Run:  python3 scripts/run_identify.py [nlevels]
 """
@@ -77,7 +60,7 @@ def observe(T_true):
 
 
 def fit_isolated_multi(f_obs, orders, L, m, EI):
-    """Isolated tensioned beam, multi-mode least squares. The control."""
+    """Tension from an isolated tensioned-beam multi-mode least-squares fit."""
     def resid(p):
         T = np.exp(p[0])
         kn = orders * np.pi / L
@@ -133,22 +116,22 @@ def main():
 
     print()
     print("=" * 74)
-    print("  Q1  ONE mode order: does the coupled boundary condition help?")
+    print("  Q1  one mode order: isolated against coupled boundary condition")
     print("=" * 74)
-    for c, lab in (("string_n1", "incumbent taut string"),
+    for c, lab in (("string_n1", "taut string"),
                    ("iso_exact", "exact isolated tensioned beam"),
                    ("pinn_iso", "PINN, isolated physics"),
-                   ("pinn_cpl", "PINN, COUPLED physics")):
+                   ("pinn_cpl", "PINN, coupled physics")):
         print(f"    {lab:32s} worst |error| {d[c].abs().max():6.3f} %"
               f"   median {d[c].abs().median():6.3f} %")
     print()
-    print("    The first three agree, and they are the ones that assume an")
-    print("    isolated stay. The bias is in the physics, not the estimator:")
-    print("    a network inherits it exactly as the closed formula does.")
+    print("    The first three methods assume an isolated stay and give the")
+    print("    same error. The error comes from the isolated-stay model, and")
+    print("    the network reproduces it as the closed formula does.")
 
     print()
     print("=" * 74)
-    print("  Q2  SEVERAL mode orders: does the coupled treatment still help?")
+    print("  Q2  several mode orders: isolated against coupled fit")
     print("=" * 74)
     for c, lab in (("multi_iso", "isolated multi-mode fit, orders 1-5"),
                    ("multi_cpl", "coupled closed-form fit, orders 1-5")):
@@ -156,13 +139,13 @@ def main():
               f"   median {d[c].abs().median():6.3f} %")
     print()
     if d.multi_iso.abs().max() <= d.multi_cpl.abs().max():
-        print("    NO. The isolated multi-mode fit is already as good or")
-        print("    better. Because the split falls as 1/n the higher orders")
+        print("    The isolated multi-mode fit is as accurate as the coupled")
+        print("    fit or better. The split falls as 1/n, so the higher orders")
         print("    are nearly unperturbed and least squares recovers the")
-        print("    tension from them. Report this: the recommendation is to")
-        print("    use several orders, not a more elaborate estimator.")
+        print("    tension from them. Several mode orders remove the bias")
+        print("    without a coupled model.")
     else:
-        print("    Yes, the coupled fit improves on the isolated one.")
+        print("    The coupled fit is more accurate than the isolated fit.")
     print()
     print(f"  wrote {DATA}/identify.csv")
 

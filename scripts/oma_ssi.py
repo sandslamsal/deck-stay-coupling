@@ -1,271 +1,11 @@
 # -*- coding: utf-8 -*-
 """Stochastic subspace identification through a deck-stay crossing.
 
-WHY THIS SCRIPT EXISTS
-----------------------
-Every result in this study about the bias of the isolated-cable tension
-inversion assumes the frequency is PICKED from a spectrum as a maximum.  The
-branch law prices a resolved pair, the merged-peak law prices the single
-maximum that survives when the pair is not resolved, and the danger band
-follows the picked peak across damping.  Against all of that the manuscript
-asserts, without evidence, that a method which FITS modes rather than picking
-maxima "can separate a pair the spectrum shows as one, in which case the
-branch law returns in full".
-
-That sentence is the one an ordinary reviewer of a signal-processing journal
-will ask for evidence of, and there is none.  This script supplies it, or
-refuses to, by running covariance-driven and data-driven stochastic subspace
-identification on records from ``scripts/simulate_records.py`` and reporting
-what they return.
-
-The answer is not a single yes or no, and it is less favourable to the
-manuscript's sentence than the sentence implies.  Every number below is
-produced by this script on the worked bridge, whose pair splits by s = 2.338
-per cent at a crossing near 151.6 kN.
-
-WHERE THE SPECTRUM STILL SHOWS TWO PEAKS (u = s/2zeta at or above 2.34 here,
-which is zeta at or below 0.5 per cent), the claim holds and holds easily.
-Every instrument configuration and both algorithms returned both branches on
-every one of the records tried.  The split came back to within 0.2 per cent
-of its true value with a deck channel and within 9 per cent with a stay
-sensor alone, and the tension error agreed with the branch law in magnitude
-to within 4 per cent.  There the branch law does return in full.
-
-WHERE THE SPECTRUM SHOWS ONE PEAK, which on this bridge begins at zeta = 1.0
-per cent and not at the 2.4 per cent that the dip-existence threshold alone
-would suggest, because the study's own 3 dB prominence convention needs a dip
-of finite depth, the claim is true at first and then fails.  Twelve records
-per case, at the exact crossing, taking the best of correlation lags 4, 16
-and 32 s, the fraction in which the automatic rule returned BOTH branches is
-
-    zeta      u        stay only   two on stay   stay + deck
-    1.0 %    1.169        83 %         83 %          100 %
-    2.0 %    0.585        25 %         17 %           83 %
-    2.5 %    0.468         8 %         17 %           58 %
-    3.0 %    0.390         0 %         25 %           58 %
-    4.0 %    0.292         0 %         17 %           42 %
-
-So a method that fits modes CAN separate a pair the spectrum shows as one,
-which is what the manuscript asserts, and at 1 per cent damping it does so
-almost always and even from a single stay sensor.  Below u = 0.5, which is
-the dip threshold the study derives, a deck channel still succeeds in about
-half of records and stay-mounted sensors essentially never do.  The sentence
-in the manuscript is therefore right in the regime just past peak picking's
-failure and wrong as a general statement.
-
-SEPARATING THE PAIR DOES NOT REMOVE THE BIAS, and this is worth being plain
-about because it is easy to read the manuscript's sentence as though it did.
-When SSI returns two poles the engineer still has to choose one, and the
-tension error is then the branch-law error, not zero: at the exact crossing
-the mean absolute error of the reading is 2.4 to 3.3 per cent against a
-branch-law value of 2.29 per cent.  What subspace identification buys is not
-a smaller error but a PREDICTABLE one, governed by the branch law instead of
-by where a broad maximum happened to land.
-
-WHAT THE INSTRUMENT SEES DECIDES MORE THAN WHICH ALGORITHM IS USED.  SSI-COV
-and SSI-DATA agree with each other to 0.06 per cent in frequency and differ
-by less than the spread between sensor configurations.  With stay-mounted
-sensors only, which is the instrumentation the incumbent tension method
-actually uses, the pair is separated only when the fitted correlation lag
-reaches about one beat period of the split: at 0.5 per cent damping the
-success rate over lag runs 0, 0, 33, 67, 100, 100, 100 per cent at lags of
-2, 4, 8, 12, 16, 24 and 32 s against a beat period of 12.9 s.  With a deck
-channel it is 100 per cent at every one of those lags including 2 s, which
-is a sixth of a beat period, because the two hybrid modes are then told apart
-by shape rather than by waiting for the beat.  In the merged regime the
-stay-only configuration managed a quarter of records at 2 per cent damping
-and none at all at 3 per cent and above, at any lag tried.
-
-A SECOND SENSOR ON THE SAME STAY DOES NOT HELP: its success rates sit within
-the sampling error of twelve records of the single-sensor ones, above and
-below them without pattern.  The reason is worth stating because it is not
-obvious.  At the crossing the two hybrid modes have a MAC of 0.996 over two
-stay stations and 0.9966 over three, so they are the same shape along the
-stay to well inside the 2 per cent MAC criterion, and no clustering rule can
-be expected to tell them apart on that.  Over one stay station and one deck
-station the MAC is 0.859.  The information that separates the pair is in the
-deck motion, not in more of the stay.
-
-RECORD LENGTH RESCUES THE TWO-SENSOR CASE AND NOT THE ONE-SENSOR CASE, which
-says the single-sensor failure is structural and not statistical.  At 3 per
-cent damping, going from 600 s to 3600 s takes the stay-plus-deck success
-rate from 33 to 67 per cent at a 16 s lag and from 58 to 83 per cent at 32 s,
-and the number of model orders at which the pair is visible at all from 21.7
-to 28.8 of 39; the stay-only configuration stays at zero per cent and its
-pair visibility does not move, 4.4 orders against 4.2.  Six records per case
-there, so those rates carry about 20 percentage points of sampling error, but
-the contrast between the two configurations is far larger than that.
-
-TWO FINDINGS FELL OUT THAT ARE NOT ABOUT SUBSPACE METHODS AT ALL.  First,
-which branch a stay-mounted accelerometer reads larger depends on where it is
-clamped: at exact tuning the modal kinetic energy makes the upper branch the
-stay-dominated one, 0.5084 against 0.4917, and so does a sensor at mid-chord,
-while a sensor 1 or 2 m above the anchorage, where field practice puts it,
-reads the LOWER branch larger by 1.5 or 1.3 times.  The sign of the tension
-error therefore depends on sensor position within about |d| < s.  Second, the
-seed-to-seed scatter of the peak-picked tension grows from 0.11 per cent at
-zeta = 0.2 per cent to 2.3 per cent at zeta = 4 per cent, so beyond about
-zeta = 2 per cent the random error of locating a broad peak in a 600 s record
-exceeds the entire systematic bias the merged-peak law describes.  The
-danger-band result says the systematic bias falls with damping; these records
-say what replaces it grows.
-
-WHAT IS IMPLEMENTED
--------------------
-Both classical algorithms, written out rather than called from a library, so
-that every choice is visible.
-
-SSI-COV.  Output correlations ``R_k = E[y_{t+k} y_t^T]`` for ``k = 0 .. 2i``
-are formed by FFT.  The block Toeplitz matrix ``T1`` of size ``(l i, l i)``
-carries ``R_{i+p-q}`` in block ``(p, q)``, so it uses lags 1 to 2i-1; the
-shifted ``T2`` carries ``R_{i+1+p-q)``, lags 2 to 2i.  One singular value
-decomposition ``T1 = U S V^T`` serves every model order: at order ``n`` the
-observability matrix is ``O = U_n S_n^(1/2)`` and the controllability-like
-factor is ``G = S_n^(1/2) V_n^T``.  ``C`` is the first block row of ``O``.
-``A`` is obtained two independent ways, and their agreement is one of the
-verification checks:
-
-    shift invariance      A = pinv(O[:-l]) O[l:]
-    Toeplitz realisation  A = S_n^(-1/2) U_n^T T2 V_n S_n^(-1/2)
-
-SSI-DATA.  The block Hankel matrix of past and future outputs, ``i`` block
-rows each and ``j = N - 2i + 1`` columns, scaled by ``1/sqrt(j)``, is reduced
-by an LQ factorisation (a QR of its transpose).  With the standard
-partitioning the orthogonal projection of the future row space onto the past
-is ``P_i = L21 Q1^T``.  Because ``Q1`` has orthonormal rows, the singular
-values and left singular vectors of ``P_i`` are those of ``L21``, so only
-``L21`` is decomposed.  Three weightings are available: UPC (unweighted,
-``W1 = W2 = I``, the default), PC, and CVA, which whitens by the future
-output covariance ``(L21 L21^T + L22 L22^T)^(1/2)``.  ``O = W1^(-1) U_n
-S_n^(1/2)`` and ``A``, ``C`` follow by shift invariance as above.
-
-Eigenvalues of ``A`` become modal parameters through the exact inverse of the
-zero-order hold, ``lambda = ln(mu)/dt``, so ``f = |lambda|/2pi`` and
-``zeta = -Re(lambda)/|lambda|``.  The principal branch of the logarithm keeps
-every identified frequency below the Nyquist rate automatically.  Mode shapes
-at the sensors are ``C psi``.
-
-STABILISATION DIAGRAM AND AUTOMATIC SELECTION
----------------------------------------------
-Model orders ``n = 2, 4, ..., n_max`` are swept, ``n_max = 80`` by default and
-capped at ``l(i-1)`` so the shift-invariance system stays overdetermined.
-Each pole at order ``n`` is matched to its nearest neighbour in frequency at
-order ``n - 2`` and graded on three criteria:
-
-    frequency   |df|/f  < 1 per cent
-    damping     |dz|/z  < 10 per cent
-    shape       1 - MAC < 2 per cent
-
-The damping tolerance is the one that decides how much of the diagram is
-called stable, and 10 rather than the equally common 5 per cent was chosen
-on the same synthetic calibration that set the clustering threshold, never
-on the bridge.  Across those systems, requiring 5 per cent recovers 90.0 per
-cent of the modes that are really there while admitting 1.1 per cent of the
-spurious poles; 10 per cent recovers 95.8 per cent for 3.0 per cent; 20 per
-cent recovers 96.7 per cent for 5.0 per cent.  Five per cent is too tight
-for a reason that is visible in the diagrams rather than statistical: a pole
-whose frequency repeats to five decimal places from one order to the next
-has a damping estimate that wanders by 15 per cent, so the criterion rejects
-poles that are not in any doubt.  The MAC criterion, by contrast, changes
-almost nothing here, 127 stable poles against 127 with it switched off on
-one synthetic case and 137 against 138 on another; it is kept because it
-costs nothing and is standard, and because its being vacuous at one channel
-would otherwise make the single-sensor case look as though it were held to
-the same standard as the two-sensor case when it is not.
-
-with the standard hard filters first: a conjugate pair with positive
-imaginary part, ``0 < zeta < 20`` per cent, and a frequency inside the
-analysis band.  Two further indicators are computed per pole:
-
-    EMAC   the modulus of the complex correlation between the observability
-           column ``O psi`` and the geometric sequence ``mu^k C psi`` it would
-           be if the pole were exact.  It is 1 for a pole the data support and
-           falls for one the least-squares residual invented.  It is defined
-           for a single channel, which MAC and MPC are not.
-    MPC    modal phase collinearity, the fraction of the mode shape's variance
-           on the dominant axis of the (real, imaginary) scatter, computed as
-           ((l1 - l2)/(l1 + l2))^2 from the eigenvalues of the 2 by 2 scatter
-           matrix.  It is identically 1 for one channel and is reported as
-           such rather than quietly used.
-
-Selection is agglomerative clustering of the stable poles under the standard
-distance ``d(p,q) = |f_p - f_q| / max(f_p, f_q) + (1 - MAC(phi_p, phi_q))``,
-average linkage, cut at 2 per cent; with one channel the MAC term is
-identically zero and the cut is on frequency alone at 1 per cent.  A cluster
-survives if it holds poles from at least ``MIN_ORDER_FRAC`` of the swept
-orders.  Its representative frequency and damping are the medians over the
-cluster, which is robust to the one or two orders at which a pole wanders.
-
-THE SINGLE CHOICE THAT MATTERS, AND HOW IT WAS MADE
----------------------------------------------------
-The number of block rows ``i`` sets the maximum correlation lag
-``tau = 2 i dt`` that the fit sees, and it is the only parameter that changes
-the answer qualitatively.  It is NOT tuned against the truth here.  The
-headline runs use ``tau = 16`` s, chosen from the analysis band alone: 16 s is
-40 cycles of the 2.5 Hz bottom of the band and gives a lag-window resolution
-``1/tau = 0.0625`` Hz, about 2 per cent of the band centre, which is the order
-of split the study is about.  Because that choice is the load-bearing one, the
-outcome is also reported as an explicit function of ``tau`` over 2 to 32 s,
-and that sweep is a result in its own right rather than a robustness footnote.
-
-Records are decimated to 20 Hz before identification, by a linear-phase
-Kaiser FIR low pass at 8 Hz and downsampling by 5.  Twenty hertz is 4.8 times
-the top of the analysis band.  This is not cosmetic and it is not free, and
-check [6] of the verification measures both sides of it.  The 100 Hz record
-carries 24 modes below the Nyquist rate against 6 below 8 Hz, and a state
-space model must account for all of them before it reaches the pair, so with
-a stay channel alone the pair does not appear anywhere in the sweep to order
-80 that the rest of this study uses, and emerges only by order 240, where its
-frequencies are out by 0.48 and 0.20 per cent; the decimated record returns
-the same pair by order 80, out by 0.13 and 0.07 per cent.  With a deck
-channel both rates find the pair and agree to 0.06 per cent.  So decimation
-buys a three to fourfold accuracy gain and, for the single-sensor case that
-this study turns on, the difference between working at an ordinary model
-order and not working at all.  Each channel is then scaled to unit variance,
-without which the deck channel, 41 dB below the stay channel, would be
-beneath the singular values of the stay channel's noise.
-
-VERIFICATION, ALL BEFORE ANY RESULT IS QUOTED
----------------------------------------------
-No established OMA implementation is installed on this machine and the package
-index is unreachable, so ``pip install pyoma2`` fails with "No matching
-distribution found"; the same is true of pyOMA, sdypy, koma, pyEMA, sippy,
-sysidentpy and python-control.  The cross-check against an outside
-implementation therefore could not be run, and is not claimed.  In its place
-are five checks against answers known independently of the code being tested:
-
-    [1] EXACT CORRELATIONS.  Given the analytic output correlation sequence of
-        a stochastic state-space model, built from the discrete Lyapunov
-        solution rather than from data, SSI-COV must return the model's own
-        eigenvalues exactly.  Agreement is at the level of the arithmetic.
-    [2] WELL-SEPARATED PAIR, the check the brief asks for by name.  A synthetic
-        four-mode system with prescribed frequencies and damping ratios,
-        driven by white noise and sampled, identified from a finite record.
-    [3] THE TWO ESTIMATORS OF A.  Shift invariance against the Toeplitz
-        realisation, which use different parts of the same decomposition.
-    [4] SSI-COV AGAINST SSI-DATA.  Two different reductions of the same record.
-    [5] THE WORKED BRIDGE AWAY FROM THE CROSSING, where the pair is wide and
-        the finite element truth is known mode by mode.
-    [6] THE DECIMATION, identified both ways on one record, so that the
-        preprocessing choice is measured rather than asserted.
-
-Outputs, all new files:
-
-    data/oma_ssi_verify.csv      the six checks
-    data/oma_ssi_lag.csv         outcome against maximum correlation lag
-    data/oma_ssi_crossing.csv    the crossing, per damping, detuning, seed
-    data/oma_ssi_merged.csv      the merged regime, twelve seeds per case
-    data/oma_ssi_longrec.csv     the same on hour-long records
-    data/oma_ssi_branch.csv      which branch a stay sensor reads larger
-    data/oma_ssi_stab.csv        one full stabilisation diagram, for a figure
-
-Run:  python3 scripts/oma_ssi.py --verify
-      python3 scripts/oma_ssi.py --lag
-      python3 scripts/oma_ssi.py --crossing
-      python3 scripts/oma_ssi.py --merged
-      python3 scripts/oma_ssi.py --longrec
-      python3 scripts/oma_ssi.py --branch
-      python3 scripts/oma_ssi.py --all
+Runs SSI-COV and SSI-DATA, with a stabilization diagram and automatic pole
+clustering, on records from scripts/simulate_records.py, and compares the
+result with peak picking, the branch law and the merged-peak law. --verify
+checks the code against known answers; no outside OMA package was available.
+Writes data/oma_ssi_*.csv.  Run: python3 scripts/oma_ssi.py --all
 """
 
 from __future__ import annotations
@@ -294,7 +34,7 @@ from simulate_records import RecordSimulator                 # noqa: E402
 
 DATA = os.path.join(ROOT, "data")
 
-# ---- the analysis pipeline, fixed here and not tuned against the truth ----
+# --- identification settings ---
 FS_DEC = 20.0            # Hz, identification rate; 4.8 x the top of FBAND
 TAU_MAX = 16.0           # s, maximum correlation lag of the headline runs
 N_MAX = 80               # highest model order swept
@@ -302,33 +42,28 @@ N_STEP = 2               # order increment
 ORD_MIN = 4              # lowest order that can carry a pole
 
 # stability criteria of the diagram
-TOL_F = 0.01             # 1 per cent on frequency
-TOL_Z = 0.10             # 10 per cent on damping, calibrated below
-TOL_MAC = 0.02           # 1 - MAC below 2 per cent
+TOL_F = 0.01             # 1 percent on frequency
+TOL_Z = 0.10             # 10 percent on damping, set on synthetic systems
+TOL_MAC = 0.02           # 1 - MAC below 2 percent
 ZETA_MAX = 0.20          # hard physical filter
 ZETA_MIN = 1e-4
 
 # clustering
-CLUST_CUT = 0.02         # 2 per cent in the combined distance
-CLUST_CUT_1CH = 0.01     # 1 per cent in frequency alone, single channel
+CLUST_CUT = 0.02         # 2 percent in the combined distance
+CLUST_CUT_1CH = 0.01     # 1 percent in frequency alone, single channel
 MIN_ORDER_FRAC = 0.50    # a cluster must span this fraction of the orders
 
-# the analysis band.  Wider than FBAND so that a pole just outside is seen
-# to be outside rather than silently discarded at the edge.
+# analysis band, wider than FBAND so that poles near its edges are kept
 BAND = (2.0, 5.0)
 
 
-# ===========================================================================
-# preprocessing
-# ===========================================================================
+# --- preprocessing ---
 
 def decimate_fir(y, fs, fs_target, taps_per_q=80, beta=8.6):
     """Linear-phase Kaiser FIR low pass, then downsample.
 
-    ``fftconvolve`` in "same" mode with an odd-length symmetric kernel removes
-    the group delay exactly, so no phase is introduced that a subspace method
-    could read as a state.  The filter transient is trimmed from both ends
-    rather than left in the record.
+    ``fftconvolve`` in "same" mode with an odd-length symmetric kernel adds no
+    group delay. The filter transient is trimmed from both ends.
     """
     y = np.atleast_2d(np.asarray(y, dtype=float))
     q = int(round(fs / fs_target))
@@ -345,11 +80,9 @@ def decimate_fir(y, fs, fs_target, taps_per_q=80, beta=8.6):
 def prepare(y, fs, fs_target=FS_DEC, normalise=True):
     """Decimate, remove the mean and a linear trend, scale each channel.
 
-    Channel scaling is not cosmetic.  The deck channel of this bridge sits
-    41 dB below the stay channel under equal load intensity, so an unscaled
-    two-channel Toeplitz matrix is numerically a one-channel Toeplitz matrix
-    with a perturbation, and the deck information that separates the pair is
-    below the stay channel's own noise floor in the singular value spectrum.
+    Scaling to unit variance is needed because the deck channel is about
+    41 dB below the stay channel and would otherwise sit below the stay
+    channel's noise in the singular values.
     """
     y = np.atleast_2d(np.asarray(y, dtype=float))
     y, fsd = decimate_fir(y, fs, fs_target)
@@ -366,12 +99,9 @@ def prepare(y, fs, fs_target=FS_DEC, normalise=True):
 def output_correlations(y, kmax, biased=True):
     """``R[k] = E[y_{t+k} y_t^T]`` for ``k = 0 .. kmax``, by FFT.
 
-    The biased normalisation (divide by ``N`` at every lag) is the default
-    because it is the one that keeps the block Toeplitz matrix positive
-    semidefinite, which the realisation theory assumes.  Its cost is a
-    triangular taper ``1 - k/N`` on the correlation, an apparent extra decay
-    rate of ``1/(N dt)``; at the record lengths used here that is 1.7 per cent
-    of the true decay rate of the pair and is reported rather than ignored.
+    Returns shape ``(kmax + 1, l, l)``. The biased estimate (divide by ``N``)
+    keeps the block Toeplitz matrix positive semidefinite, at the cost of an
+    apparent extra decay rate of ``1/(N dt)``.
     """
     y = np.atleast_2d(y)
     l, N = y.shape
@@ -385,9 +115,7 @@ def output_correlations(y, kmax, biased=True):
     return R / (N - np.arange(kmax + 1))[:, None, None]
 
 
-# ===========================================================================
-# the two algorithms
-# ===========================================================================
+# --- the two algorithms ---
 
 class _Subspace:
     """Common machinery: one decomposition, every model order off it."""
@@ -408,14 +136,7 @@ class _Subspace:
 
     @staticmethod
     def _lsq(a, b):
-        """Least squares by the LAPACK complete-orthogonal driver.
-
-        ``numpy.linalg.lstsq`` calls ``gelsd`` on this machine and takes 1.9 s
-        on the 318 by 80 systems the order sweep generates, which is 12 s of a
-        13 s stabilisation diagram; ``gelsy`` returns the same answer to
-        3e-15 in 1 ms.  The order sweep runs a few thousand of these, so the
-        difference decides whether the crossing study takes minutes or a day.
-        """
+        """Least squares by the fast LAPACK ``gelsy`` driver."""
         return lstsq(a, b, lapack_driver="gelsy")[0]
 
     def modal(self, n, route="shift"):
@@ -429,8 +150,11 @@ class _Subspace:
 class SSICov(_Subspace):
     """Covariance-driven SSI.
 
-    ``y`` is ``(l, N)``.  ``i`` block rows means correlation lags up to
-    ``2 i`` are used, a maximum lag of ``2 i dt`` seconds.
+    ``y`` is ``(l, N)``. ``i`` block rows use correlation lags up to ``2 i``,
+    a maximum lag of ``2 i dt`` seconds. ``T1`` holds ``R[i+p-q]`` in block
+    ``(p, q)`` and ``T2`` is shifted by one lag. ``A`` comes from shift
+    invariance, ``pinv(O[:-l]) O[l:]``, or from the Toeplitz realization,
+    ``S^(-1/2) U^T T2 V S^(-1/2)``.
     """
 
     def __init__(self, y, fs, i, biased=True):
@@ -462,14 +186,12 @@ class SSICov(_Subspace):
 
 
 class SSIData(_Subspace):
-    """Data-driven SSI by LQ factorisation of the block Hankel matrix.
+    """Data-driven SSI by LQ factorization of the block Hankel matrix.
 
-    Weightings: ``UPC`` (unweighted principal component, the default),
-    ``PC``, ``CVA``.  UPC and PC differ only in a right weighting, which does
-    not change the left singular vectors and therefore does not change the
-    observability matrix or the poles; both are provided because the
-    literature names them separately, and the code makes the equivalence
-    visible instead of hiding it.
+    The projection of future outputs onto past outputs is ``L21 Q1^T``, so
+    only ``L21`` is decomposed. Weightings: ``UPC`` (default), ``PC`` and
+    ``CVA``. UPC and PC give the same poles, because the right weighting does
+    not change the left singular vectors.
     """
 
     def __init__(self, y, fs, i, weighting="UPC"):
@@ -517,29 +239,20 @@ class SSIData(_Subspace):
         return self._lsq(O[:-self.l], O[self.l:])
 
 
-# ===========================================================================
-# eigenvalues to modal parameters, and the per-pole indicators
-# ===========================================================================
+# --- eigenvalues to modal parameters, and per-pole indicators ---
 
 def _rcmul(A, B):
-    """Real matrix times complex matrix, as two real products.
-
-    ``numpy``'s mixed real-complex ``@`` takes the complex path on this build
-    and is 74 times slower than doing the two real products by hand: 177 ms
-    against 2.4 ms on the 80 by 78 times 78 by 78 case the order sweep runs
-    forty times per diagram.  Casting the real operand to complex first is
-    worse again, 320 ms, so it is the complex GEMM itself that is slow here
-    and not the mixed dispatch.  The two forms agree to 1.2e-14.
-    """
+    """Real matrix times complex matrix, as two real products (faster here)."""
     return A @ B.real + 1j * (A @ B.imag)
 
 
 def modal_from_AC(A, C, dt, O=None):
     """Frequencies, damping ratios, shapes and indicators from ``A``, ``C``.
 
-    Only one member of each conjugate pair is returned, the one with positive
-    imaginary part.  Real eigenvalues are overdamped or spurious and are
-    dropped here rather than filtered later, because they have no frequency.
+    ``lambda = ln(mu)/dt``, ``f = |lambda|/2pi`` and
+    ``zeta = -Re(lambda)/|lambda|``; shapes at the sensors are ``C psi``.
+    Only the member of each conjugate pair with positive imaginary part is
+    kept; real eigenvalues are dropped.
     """
     mu, psi = eig(A)
     keep = np.imag(mu) > 0
@@ -560,27 +273,13 @@ def modal_from_AC(A, C, dt, O=None):
 
 
 def _emac(O, psi, mu, l):
-    """Consistency of the observability column with a geometric progression.
+    """Consistency of each observability column with a geometric sequence.
 
-    If ``(A, C)`` were exact, the column ``O psi_k`` would be
-    ``[C psi_k, mu_k C psi_k, mu_k^2 C psi_k, ...]`` exactly, because
-    ``O = [C; CA; CA^2; ...]``.  ``A`` here is a least-squares fit to the
-    shift of ``O``, so the column departs from that progression by the
-    residual, and the modulus of the complex correlation between the two is a
-    number between 0 and 1 that says how much of the pole the data support.
-
-    Unlike MAC between orders and unlike MPC, this is meaningful with a
-    single channel, which is exactly the case this study needs graded.
-
-    The geometric factors are formed as ``exp(k log mu)`` with the real part
-    of the exponent floored, rather than as ``mu**k``.  A heavily damped
-    spurious pole has ``|mu|`` well below one, and at 160 block rows
-    ``|mu|^159`` underflows to a subnormal, where complex arithmetic on this
-    processor runs about two orders of magnitude slower.  That single detail
-    was 93 per cent of the cost of a stabilisation diagram before it was
-    fixed, 6.3 s of 6.8 s.  Flooring the exponent at -300 changes nothing:
-    the terms it discards are below 1e-130 of the leading one and cannot
-    move a correlation coefficient.
+    For exact ``(A, C)`` the column ``O psi_k`` equals ``[C psi_k,
+    mu_k C psi_k, mu_k^2 C psi_k, ...]``. Returns the modulus of the complex
+    correlation between the two, from 0 to 1. Unlike MAC and MPC, it is
+    defined for a single channel. The exponent of ``mu^k`` is floored at -300
+    to avoid slow subnormal arithmetic; the terms it drops are negligible.
     """
     n_blocks = O.shape[0] // l
     n = psi.shape[1]
@@ -598,20 +297,11 @@ def _emac(O, psi, mu, l):
 
 
 def _mpc(phi):
-    """Modal phase collinearity, as the anisotropy of the (Re, Im) scatter.
+    """Modal phase collinearity, ``((l1 - l2)/(l1 + l2))^2``.
 
-    ``((l1 - l2)/(l1 + l2))^2`` with ``l1 >= l2`` the eigenvalues of the 2 by 2
-    scatter matrix of the real and imaginary parts.  One for a monophase mode.
-
-    The scatter is taken about the ORIGIN, not about the mean of the shape
-    components.  A monophase mode has its components on a line through the
-    origin, because a mode shape and its negative are the same mode, so the
-    origin is where the line belongs.  The mean-removed variant, which some
-    codes use, is degenerate for two channels: after centring the two points
-    are equal and opposite, the scatter is rank one, and MPC is identically
-    one no matter what the phases are.  With the scatter about the origin it
-    is informative from two channels and degenerate only at one, where the
-    single point is trivially collinear with itself.
+    ``l1 >= l2`` are the eigenvalues of the 2 by 2 scatter matrix of the real
+    and imaginary parts, taken about the origin rather than the mean so that
+    the value is informative from two channels. Equal to 1 for one channel.
     """
     x, y = np.real(phi), np.imag(phi)
     if x.size < 2:
@@ -633,26 +323,18 @@ def mac(a, b):
     return float(abs(np.vdot(a, b)) ** 2 / (na * nb))
 
 
-# ===========================================================================
-# the stabilisation diagram
-# ===========================================================================
+# --- stabilization diagram ---
 
 def stabilisation(est, orders=None, band=BAND, route="shift",
                   tol_f=TOL_F, tol_z=TOL_Z, tol_mac=TOL_MAC):
     """Poles at every model order, graded against the order below.
 
     Returns a DataFrame with one row per pole per order and the columns
-    ``order, f, zeta, emac, mpc, stab_f, stab_z, stab_mac, stable``.  The
-    hard physical filters are applied first, so a row that exists is already
-    a conjugate pole with a positive damping ratio below 20 per cent and a
-    frequency inside the analysis band; the three ``stab_`` flags then say
-    whether it repeated at the previous order.
-
-    Matching between orders is to the NEAREST pole in frequency at the
-    previous swept order, among poles that survived the hard filters.  That is
-    the usual rule and it is deliberately generous: it can only make a pole
-    look more stable than a stricter matching would, so a pole this diagram
-    calls unstable is unstable under any of the usual variants.
+    ``order, f, zeta, emac, mpc, stab_f, stab_z, stab_mac, stable``. Only
+    conjugate poles with ``ZETA_MIN < zeta < ZETA_MAX`` inside ``band`` are
+    kept. Each is matched to the nearest pole in frequency at the previous
+    order and flagged stable if ``|df|/f < tol_f``, ``|dzeta|/zeta < tol_z``
+    and ``1 - MAC < tol_mac``.
     """
     if orders is None:
         orders = range(ORD_MIN, min(N_MAX, est.n_max_possible) + 1, N_STEP)
@@ -689,51 +371,17 @@ def select_poles(df, l, min_order_frac=MIN_ORDER_FRAC, cut=None,
                  use_stable=True, compact=False):
     """Cluster the stable poles and return one representative per cluster.
 
-    The distance is the standard one,
-
-        d(p, q) = |f_p - f_q| / max(f_p, f_q) + (1 - MAC(phi_p, phi_q)),
-
-    cut at 2 per cent under average linkage.  With one channel every MAC is
-    identically 1, so the second term vanishes and the cut is on frequency
-    alone; the threshold is halved there to 1 per cent so that the criterion
-    is not quietly loosened by the loss of the shape term.
-
-    A cluster is then kept on one condition: its poles must come from at
-    least ``min_order_frac`` of the swept model orders.  Counting DISTINCT
-    orders rather than poles is what makes the rule mean "this pole survived
-    as the order grew" rather than "this pole appeared often", which one
-    order producing several near duplicates would otherwise satisfy.
-
-    HOW THAT THRESHOLD WAS SET, AND WHAT ELSE WAS TRIED.  It was calibrated
-    on synthetic systems only, never on the bridge, so that the rule was
-    fixed before it was pointed at the question this study asks.  Seven
-    modal systems of two to four modes, at two noise levels, three seeds and
-    one and two channels, gave 742 clusters at ``N_MAX = 40`` and 1917 at
-    ``N_MAX = 80``; each was labelled real or spurious by whether its
-    frequency fell within 1 per cent of a mode the system was built with.
-    Requiring half the orders keeps 86 and 83 per cent of the real poles
-    while admitting 1 per cent of the spurious ones at both maximum orders.
-    Nothing else tried did better.  Requiring the longest CONSECUTIVE run of
-    orders to be half the sweep admits no spurious poles at all but loses
-    more than half the real ones.  Measuring persistence from the order at
-    which a pole first appears, which sounds fairer to a mode that needs a
-    high order before it emerges, is worse on both counts, admitting 8 to 22
-    per cent of the spurious poles for fewer real ones.  Screening on the
-    cluster's internal scatter of frequency and damping, or on EMAC, admits
-    10 to 30 per cent of the spurious poles at a comparable loss.
-
-    THE SCATTER SCREEN, LEFT IN AND SWITCHED OFF.  ``compact=True`` requires
-    the cluster's median absolute deviation in frequency to be within
-    ``TOL_F`` of its median and in damping within ``TOL_Z``.  It is what a
-    reader would reach for first and the reason it is not used should be
-    inspectable rather than asserted: real poles on the worked bridge have a
-    damping scatter of 9 to 11 per cent of their own median, because the
-    damping estimate genuinely wanders with model order, so a screen tight
-    enough to reject the spurious poles rejects the real ones with them.
-
-    ``n_clusters_raw`` in the returned frame records how many clusters passed
-    persistence before any scatter screen, so a rejection is visible rather
-    than showing up as a pole that was never there.
+    The distance is
+    ``d(p, q) = |f_p - f_q| / max(f_p, f_q) + (1 - MAC(phi_p, phi_q))``
+    under average linkage, cut at ``CLUST_CUT``. With one channel the MAC
+    term vanishes and the cut is ``CLUST_CUT_1CH`` on frequency alone. A
+    cluster is kept if its poles come from at least ``min_order_frac`` of the
+    distinct swept orders; this threshold was set on synthetic systems only.
+    With ``compact=True`` the median absolute deviations of frequency and
+    damping must also be within ``TOL_F`` and ``TOL_Z``. This is off by
+    default because real poles on the bridge scatter by about 10 percent in
+    damping. The representative frequency and damping are cluster medians.
+    ``attrs["n_clusters_raw"]`` counts the clusters that passed persistence.
     """
     cols = ["f", "zeta", "n_orders", "order_frac", "emac", "mpc",
             "f_std", "zeta_std", "f_mad", "zeta_mad", "n_poles", "phi"]
@@ -819,19 +467,14 @@ def identify(y, fs, method="cov", tau=TAU_MAX, fs_target=FS_DEC,
     return sel
 
 
-# ===========================================================================
-# a synthetic stochastic state-space model with prescribed modal parameters
-# ===========================================================================
+# --- synthetic state-space model with prescribed modal parameters ---
 
 class ModalSystem:
-    """A discrete stochastic system built from frequencies and damping ratios.
+    """Discrete stochastic system with prescribed frequencies and damping.
 
-    Each mode is one exactly discretised second-order oscillator in the state
-    ``[q, q']``, driven by white process noise, observed through prescribed
-    mode shapes as displacement.  Because the continuous poles are written
-    down rather than solved for, the modal parameters this system possesses
-    are known to the last digit, which is what makes it a verification case
-    and not another simulation to be trusted.
+    Each mode is an exactly discretized oscillator in the state ``[q, q']``,
+    driven by white noise and observed as displacement through prescribed
+    mode shapes, so its modal parameters are known exactly.
     """
 
     def __init__(self, f, zeta, shapes, dt, q_scale=None, seed=0):
@@ -878,13 +521,11 @@ class ModalSystem:
         return out
 
     def exact_correlations(self, kmax):
-        """``R_k`` from the discrete Lyapunov solution, no data involved.
+        """``R_k`` from the discrete Lyapunov solution, with no data.
 
         ``Sigma = A Sigma A^T + Q`` with ``Q = B diag(q^2) B^T``, then
-        ``R_0 = C Sigma C^T`` and ``R_k = C A^(k-1) G`` with ``G = A Sigma
-        C^T``.  This is the sequence the realisation theory says the block
-        Toeplitz matrix factors, so feeding it to SSI-COV tests the algorithm
-        against its own premise with no estimation error anywhere.
+        ``R_0 = C Sigma C^T`` and ``R_k = C A^(k-1) G`` with
+        ``G = A Sigma C^T``.
         """
         Q = self.B @ np.diag(self.q ** 2) @ self.B.T
         Sig = solve_discrete_lyapunov(self.A, Q)
@@ -928,12 +569,16 @@ def _match(f_true, z_true, f_got, z_got):
     return np.array(ef), np.array(ez)
 
 
-# ===========================================================================
-# verification
-# ===========================================================================
+# --- verification ---
 
 def verify(dur=600.0, verbose=True):
-    """Five checks against answers known independently of this code."""
+    """Six checks against answers known independently of this code.
+
+    [1] exact correlations return the model's own poles; [2] a well-separated
+    pair from a finite record; [3] shift invariance against the Toeplitz
+    realization; [4] SSI-COV against SSI-DATA; [5] the bridge away from the
+    crossing; [6] decimation to 20 Hz against the raw 100 Hz record.
+    """
     rows = []
 
     def add(check, **kw):
@@ -978,9 +623,7 @@ def verify(dur=600.0, verbose=True):
             nfound.append(len(sel))
             fg = sel["f"].to_numpy()
             zg = sel["zeta"].to_numpy()
-            # detection and error are different things and are kept apart:
-            # a mode that was not returned at all is a miss, not a large
-            # error, and averaging the two together would hide both
+            # a mode not returned counts as a miss, not as a large error
             for ft, zt in zip(f_s, z_s):
                 if len(fg) and np.min(np.abs(fg - ft)) / ft < 0.01:
                     k = int(np.argmin(np.abs(fg - ft)))
@@ -1002,7 +645,7 @@ def verify(dur=600.0, verbose=True):
 
     # -- [3] and [4] the two A routes and the two algorithms ---------------
     if verbose:
-        print("\n[3] SHIFT INVARIANCE vs TOEPLITZ REALISATION, and\n"
+        print("\n[3] SHIFT INVARIANCE vs TOEPLITZ REALIZATION, and\n"
               "[4] SSI-COV vs SSI-DATA, on one bridge record")
     sim = RecordSimulator(T_TUNE, 0.005)
     rec = sim.record(duration=dur, snr_db=20.0, seed=0)
@@ -1030,16 +673,15 @@ def verify(dur=600.0, verbose=True):
         max_rel_df=_safe_max_rel(fa, fd_),
         max_rel_dzeta=_safe_max_rel(za, zd_))
 
-    # -- [5] the worked bridge away from the crossing ----------------------
+    # -- [5] the example bridge away from the crossing ----------------------
     if verbose:
-        print("\n[5] THE WORKED BRIDGE AWAY FROM THE CROSSING")
+        print("\n[5] THE EXAMPLE BRIDGE AWAY FROM THE CROSSING")
     for T, lab in ((1.30e5, "detuned low"), (1.75e5, "detuned high")):
         s5 = RecordSimulator(T, 0.005)
         r5 = s5.record(duration=dur, snr_db=20.0, seed=1)
         ft = np.array([s5.f_lo, s5.f_hi])
         zt = np.array([s5.zj[s5.pair_idx[0]], s5.zj[s5.pair_idx[1]]])
-        # which of the two the stay sensor can see at all: the stay energy
-        # fraction, and the mode-shape amplitude at the sensor itself
+        # stay energy fraction, and mode-shape amplitude at the stay sensor
         es = s5.energy_split[s5.pair_idx]
         amp = np.abs(s5.Phi[s5.dof_stay, s5.pair_idx])
         k_stay = int(np.argmax(amp))                 # stay-dominated branch
@@ -1073,9 +715,7 @@ def verify(dur=600.0, verbose=True):
     for cfg, nch in (("stay+deck", 2), ("stay only", 1)):
         yy = (np.vstack([r6["a_stay"], r6["a_deck"]]) if nch == 2
               else r6["a_stay"][None, :])
-        # the SAME order grid in every row, N_STEP as everywhere else, so
-        # that the three rows differ only in the sampling rate and the
-        # highest order and not in how finely the sweep was taken
+        # same order step in every row; rows differ in rate and highest order
         for fst, nmax, lab in ((FS_DEC, N_MAX, "decimated 20 Hz"),
                                (r6["fs"], N_MAX, "raw 100 Hz"),
                                (r6["fs"], 240, "raw 100 Hz, order to 240")):
@@ -1095,13 +735,7 @@ def verify(dur=600.0, verbose=True):
 
 
 def _safe_max_rel(a, b):
-    """Largest relative difference between two equal-length vectors.
-
-    Returns NaN rather than raising when the two identifications did not
-    return the same number of poles, because that case is a finding and not
-    an error: it means one method found something the other did not, and the
-    ``n_`` columns beside this one say which.
-    """
+    """Largest relative difference of two equal-length vectors, else NaN."""
     a, b = np.asarray(a, float), np.asarray(b, float)
     if len(a) != len(b) or not len(a):
         return np.nan
@@ -1114,54 +748,33 @@ def _fmt(v):
     return str(v)
 
 
-# ===========================================================================
-# the incumbent inversion, the laws it is measured against, and peak picking
-# ===========================================================================
+# --- the isolated-cable inversion, the two laws, and peak picking ---
 
 def eps_from_freq(f_hat, f_iso):
     """Relative tension error of the isolated-cable inversion.
 
-    ``T = 4 m L^2 f^2 / n^2``, so with the isolated stay fundamental as the
-    reference the relative tension error of a reading ``f_hat`` is
-    ``(f_hat/f_iso)^2 - 1``.  This is the same quantity
-    ``run_merged.picked_error`` returns and the same one ``eps_branch_law``
-    and ``eps_merged_law`` predict, so the three are directly comparable.
+    With ``T = 4 m L^2 f^2 / n^2`` the error of a reading ``f_hat`` is
+    ``(f_hat/f_iso)^2 - 1``, the quantity that ``run_merged.picked_error``,
+    ``eps_branch_law`` and ``eps_merged_law`` also return.
     """
     return (f_hat / f_iso) ** 2 - 1.0
 
 
 def eps_branch_law(d, s):
-    """Stay-dominated branch error, signed.  Copied in form from run_merged."""
+    """Signed stay-dominated branch error, ``sign(d) (hypot(d, s) - |d|)``."""
     sg = 1.0 if d >= 0 else -1.0
     return sg * (np.hypot(d, s) - abs(d))
 
 
 def peak_pick(y, fs, band=FBAND, nperseg=8192, prom_db=3.0, smooth=3,
                window=None):
-    """What an engineer reads off the spectrum of the same record.
+    """Frequency read off the stay-channel spectrum as its largest peak.
 
-    Welch spectrum of the stay channel, smoothed across ``smooth`` bins by a
-    Hann kernel, peaks above a 3 dB prominence floor inside the band, the
-    largest returned as the reading.  This is the incumbent method, run on
-    the identical record the subspace methods see, so the comparison is
-    between methods and not between datasets.
-
-    THE SMOOTHING IS NOT COSMETIC AND IS NOT FREE.  A raw Welch estimate of a
-    600 s record at ``nperseg = 8192`` averages thirteen segments, so each
-    bin carries about 28 per cent standard error, and a 3 dB prominence rule
-    then counts noise wiggles as peaks: four in the band at 0.5 per cent
-    damping where the pair is plainly two, twenty-five at ``nperseg =
-    16384``.  Averaging three bins with a Hann kernel widens the effective
-    resolution to about 0.03 Hz, still a third of the 0.078 Hz separation of
-    the worked bridge's pair, and returns the count to what the eye sees.
-    Two counts are returned.  ``n_band`` is every peak in the analysis band,
-    which is what a blind engineer would tally and which stays noisy however
-    the spectrum is smoothed, because the band is 1.7 Hz wide and mostly
-    empty.  ``n_window`` counts only the peaks inside a window supplied by
-    the caller and set around the pair, and it is that count the dip
-    criterion predicts.  The distinction matters: at 0.2 per cent damping the
-    band count is three or four while the window count is two, and the pair
-    is unambiguously two peaks.
+    Welch spectrum, smoothed over ``smooth`` bins by a Hann kernel so that
+    noise wiggles are not counted as peaks, then peaks above ``prom_db`` of
+    prominence inside ``band``. Returns ``(f_peak, n_band, f_peaks,
+    n_window)``: ``n_band`` counts every peak in the band and ``n_window``
+    only those inside ``window``, which the caller sets around the pair.
     """
     f, P = welch(y, fs=fs, nperseg=min(nperseg, len(y)), noverlap=None)
     if smooth and smooth > 1:
@@ -1195,15 +808,11 @@ def _pair_truth(sim):
 
 
 def _channels(sim, rec, config):
-    """The three instrument configurations compared.
+    """Output channels of one instrument configuration.
 
-    ``stay`` is one accelerometer on the stay, which is what the incumbent
-    tension method uses.  ``stay+deck`` adds a deck channel at the anchorage,
-    which is what a bridge monitoring system has.  ``stay2`` is two
-    accelerometers on the SAME stay, at 2 m and mid-chord, which is what an
-    engineer would reach for if told that one sensor is not enough; it is in
-    the comparison because the answer is not obvious and turns out to be
-    negative for a reason worth stating.
+    ``stay``: one accelerometer on the stay. ``stay+deck``: adds a deck
+    channel at the anchorage. ``stay2``: two accelerometers on the same stay,
+    at 2 m and mid-chord (the DOFs are set in ``_simulator``).
     """
     if config == "stay":
         return rec["a_stay"][None, :]
@@ -1215,12 +824,10 @@ def _channels(sim, rec, config):
 
 
 def _simulator(T, zeta, config, cache={}):
-    """A simulator for one tension, damping and instrument configuration.
+    """Cached simulator for one tension, damping ratio and configuration.
 
-    For ``stay2`` the output DOFs are set to two points on the stay before
-    the record is generated.  ``RecordSimulator`` exposes the DOF list it
-    observes through, so this needs no change to that module: the second
-    channel is moved from the deck anchorage to mid-chord on the stay.
+    For ``stay2`` the second output DOF moves from the deck anchorage to
+    mid-chord on the stay.
     """
     key = (round(T, 3), round(zeta, 8), config == "stay2")
     if key in cache:
@@ -1235,22 +842,16 @@ def _simulator(T, zeta, config, cache={}):
     return sim
 
 
-# ===========================================================================
-# study 1: the outcome against maximum correlation lag
-# ===========================================================================
+# --- study 1: outcome against maximum correlation lag ---
 
 def lag_study(zetas=(0.005, 0.02, 0.03), taus=(2.0, 4.0, 8.0, 12.0, 16.0,
                                               24.0, 32.0),
               seeds=(0, 1, 2), dur=600.0, snr_db=20.0, verbose=True):
-    """Does the pair separate, as a function of the fitted correlation lag?
+    """Whether the pair separates, against the maximum correlation lag.
 
-    Run at the exact crossing, where the split is smallest and the question
-    hardest.  The prediction under test is that a stay-only instrument needs
-    a lag of the order of one beat period ``1/(f_hi - f_lo)`` before it can
-    tell two poles from one, because that is when the two-mode and one-mode
-    descriptions of the correlation stop being interchangeable, while a
-    stay-plus-deck instrument does not, because the two hybrid modes have
-    different deck components and are told apart by shape at any lag.
+    Run at the exact crossing. A stay-only instrument is expected to need a
+    lag near one beat period ``1/(f_hi - f_lo)``; with a deck channel the two
+    hybrid modes differ in shape and can separate at any lag.
     """
     rows = []
     for zeta in zetas:
@@ -1330,14 +931,12 @@ def _grade(inb, tr, tol=0.01):
     return out
 
 
-# ===========================================================================
-# study 2: through the crossing
-# ===========================================================================
+# --- study 2: through the crossing ---
 
 TENSIONS = (1.430e5, 1.470e5, 1.516e5, 1.560e5, 1.610e5)
 ZETAS = (0.002, 0.005, 0.010, 0.020, 0.025, 0.030, 0.040)
 CONFIGS = ("stay", "stay2", "stay+deck")
-U_SPLIT = np.sqrt(np.sqrt(5.0) - 2.0)      # 0.48587, below which the dip goes
+U_SPLIT = np.sqrt(np.sqrt(5.0) - 2.0)      # 0.48587; no dip below this u
 
 
 def _psd_at(y, fs, freqs, nperseg=8192):
@@ -1349,24 +948,16 @@ def _psd_at(y, fs, freqs, nperseg=8192):
 def crossing_study(tensions=TENSIONS, zetas=ZETAS, seeds=(0, 1, 2),
                    configs=CONFIGS, methods=("cov", "data"),
                    taus=(4.0, 16.0), dur=600.0, snr_db=20.0, verbose=True):
-    """What each identification method returns through the crossing.
+    """Identification results through the crossing.
 
-    For every tension, damping ratio, seed, instrument configuration, method
-    and correlation lag: the poles found in the band, whether they match the
-    two true branches, and the tension the incumbent inversion would return
-    from them, beside the tension peak picking returns from the same record
-    and beside the branch law and the merged-peak law.
+    For each tension, damping ratio, seed, instrument configuration, method
+    and correlation lag: the poles in the band, whether they match the two
+    true branches, and the tension error of three readings, beside the branch
+    law and the merged-peak law:
 
-    Three readings are priced, because "SSI separates the pair" and "the
-    engineer gets the right tension" are different claims:
-
-        eps_ssi_amp     the pole an engineer would take, being the one whose
-                        spectral density at the stay channel is larger
-        eps_ssi_oracle  the pole that IS the stay-dominated branch, which no
-                        engineer can know but which is what the branch law
-                        prices
-        eps_peak        the maximum of the stay channel's own spectrum, the
-                        incumbent method run on the identical record
+        eps_ssi_amp     SSI pole with the larger spectral density at the stay
+        eps_ssi_oracle  SSI pole nearest the true stay-dominated branch
+        eps_peak        largest peak of the stay-channel spectrum
     """
     rows = []
     t0 = time.time()
@@ -1452,14 +1043,14 @@ def crossing_study(tensions=TENSIONS, zetas=ZETAS, seeds=(0, 1, 2),
 
 
 def summarise_crossing(df, verbose=True):
-    """The two tables the question actually asks for."""
+    """Tabulate the poles found at the exact crossing; return those rows."""
     ok = df[df["failed"] == ""]
     tune = ok[np.abs(ok["d"]) < 0.005]           # the exact crossing
     if verbose:
         print("\n" + "=" * 78)
-        print("AT THE CROSSING: does the method see one pole or two?")
+        print("AT THE CROSSING: poles found in the band")
         print("=" * 78)
-        print("  u = s/2zeta below %.4f means the SPECTRUM shows one peak.\n"
+        print("  for u = s/2zeta below %.4f the spectrum shows one peak.\n"
               % U_SPLIT)
         hdr = ("  %-6s %-6s %-9s %-10s %-6s %8s %8s %9s"
                % ("zeta", "u", "config", "method", "tau", "both", "n_pole",
@@ -1476,21 +1067,11 @@ def summarise_crossing(df, verbose=True):
 
 
 def pair_visibility(df, tr, tol=0.01):
-    """Was the pair ever in the diagram, whatever the selection rule did?
+    """Whether the pair appears in the diagram at all, before selection.
 
-    The automatic rule is deliberately conservative: it keeps only poles that
-    persist over half the swept orders.  That is the right rule for an
-    analyst who must decide without knowing the answer, but it conflates two
-    very different failures, and the difference matters to the claim under
-    test.  A pair that never appears at any order means the record does not
-    carry the information.  A pair that appears cleanly at orders 12 to 20
-    and then dissolves means the information is there and the rule threw it
-    away, which is a statement about the rule and not about the physics.
-
-    Returns the number of swept orders at which TWO poles simultaneously sit
-    within ``tol`` of the two true branches, the first and last such order,
-    and the longest run of consecutive such orders.  Stability is ignored
-    here on purpose; this is a question about what the diagram contains.
+    Returns the number of swept orders at which two distinct poles sit within
+    ``tol`` of the two true branches, the first and last such order, and the
+    longest run of consecutive such orders. Stability is ignored.
     """
     if df is None or not len(df):
         return dict(n_orders_pair=0, first_order_pair=np.nan,
@@ -1523,20 +1104,13 @@ def merged_study(zetas=(0.010, 0.020, 0.025, 0.030, 0.040), seeds=range(12),
                  configs=CONFIGS, methods=("cov", "data"),
                  taus=(4.0, 16.0, 32.0), dur=600.0, snr_db=20.0,
                  T=T_TUNE, verbose=True):
-    """The merged regime, with enough seeds to quote a rate.
+    """The merged regime at the exact crossing, twelve seeds per case.
 
-    Everything here is at the exact crossing and at damping ratios where the
-    spectrum of this bridge shows ONE maximum under the study's own 3 dB
-    prominence convention, which the noise-free frequency response puts at
-    1.0 per cent damping and above.  The lag study answers the question at
-    three seeds, which is enough to see a pattern and not enough to quote a
-    number; this answers it at twelve, per damping ratio, configuration,
-    method and correlation lag.
-
-    Reported per case: the fraction of records in which BOTH branches were
-    returned within 1 per cent, the fraction in which the split was
-    recovered to within a quarter of its true value, and the tension error
-    of the reading an engineer would take.
+    Damping ratios at which the stay spectrum shows one maximum under the
+    3 dB prominence rule (1.0 percent and above on this bridge). Per case:
+    whether both branches were returned within 1 percent, whether the pair
+    appears in the diagram, and the tension error of the SSI pole with the
+    larger spectral density at the stay channel.
     """
     rows = []
     t0 = time.time()
@@ -1592,7 +1166,7 @@ def merged_study(zetas=(0.010, 0.020, 0.025, 0.030, 0.040), seeds=range(12),
                   % (zeta, u, time.time() - t0))
     df = pd.DataFrame(rows)
     if verbose and len(df):
-        print("\nTHE MERGED REGIME: fraction of records returning BOTH "
+        print("\nTHE MERGED REGIME: fraction of records returning both "
               "branches\n")
         print("  %-7s %-6s %-10s %-6s %s" % ("zeta", "u", "config", "method",
               " ".join("tau=%-5.0f" % t for t in sorted(df["tau"].unique()))))
@@ -1617,28 +1191,10 @@ def branch_dominance(tensions=TENSIONS, stations=(1.0, 2.0, 4.0, 6.0, 12.5,
                                                 20.0), verbose=True):
     """Which branch a stay-mounted sensor reads larger, against its position.
 
-    This costs no records and is not an identification result at all; it is a
-    property of the mode shapes.  It is here because the crossing study threw
-    up a sign that did not match the branch law and this is the explanation.
-
-    The branch law and the merged-peak law both descend from a two degree of
-    freedom reduction in which the stay is ONE coordinate, so "the residue at
-    the stay" and "the stay-dominated branch" are the same thing there.  On a
-    stay with distributed mass they are not.  The two hybrid modes have
-    slightly different shapes ALONG the chord, because each carries a
-    component forced through the tie at the anchorage as well as its own
-    modal motion, and the two add with opposite signs.  Near the anchorage
-    the tie-driven part is a large fraction of the total and the ordering of
-    the two residues can invert.
-
-    On the worked bridge at exact tuning the modal kinetic energy says the
-    upper branch is the stay-dominated one, by 0.5084 to 0.4917, and so does
-    a sensor at mid-chord or beyond.  A sensor 1 or 2 m above the anchorage,
-    which is where field practice puts it because that is what can be
-    reached, reads the LOWER branch larger by a factor of 1.5 or 1.3.  The
-    sign of the tension error therefore depends on where the accelerometer is
-    clamped, and only within about ``|d| < s``: by a detuning of 1.5 per cent
-    every station agrees again.
+    A property of the mode shapes; no records are simulated. Returns the
+    ratio of lower- to upper-branch shape amplitude at each station beside
+    the stay kinetic-energy fractions. Near the anchorage the two orderings
+    can differ when ``|d| < s``.
     """
     rows = []
     for T in tensions:
@@ -1664,18 +1220,16 @@ def branch_dominance(tensions=TENSIONS, stations=(1.0, 2.0, 4.0, 6.0, 12.5,
                   % (T / 1e3, g["d"].iloc[0], g["e_lo"].iloc[0],
                      g["e_hi"].iloc[0],
                      " ".join("%7.3f" % v for v in g["ratio_lo_hi"])))
-        print("\n  ratio above 1 means the LOWER branch is read larger there")
+        print("\n  a ratio above 1 means the lower branch is read larger at that station")
     return df
 
 
 def stab_diagram_dump(T=T_TUNE, zeta=0.03, seed=0, dur=600.0, snr_db=20.0,
                       taus=(4.0, 16.0), configs=("stay", "stay+deck"),
                       method="cov"):
-    """One full stabilisation diagram per configuration, for plotting.
+    """One full stabilization diagram per configuration and lag, for plotting.
 
-    Written at a damping ratio inside the merged regime, because that is the
-    case the whole question turns on: the spectrum there has one maximum, and
-    the diagram is where a second pole either appears or does not.
+    The default damping of 3 percent is inside the merged regime.
     """
     rows = []
     for config in configs:
@@ -1725,9 +1279,9 @@ def main():
         print("=" * 78)
         print("VERIFICATION")
         print("=" * 78)
-        print("  no established OMA package is installed and the package "
-              "index is\n  unreachable, so the outside cross-check could not "
-              "be run; see the\n  module docstring.")
+        print("  checks against known answers; no external OMA package "
+              "was available\n  for a cross-check (see the "
+              "module docstring).")
         v = verify(dur=a.dur)
         v.to_csv(os.path.join(DATA, "oma_ssi_verify.csv"), index=False)
         print("\n  -> data/oma_ssi_verify.csv")
@@ -1757,15 +1311,14 @@ def main():
         mg.to_csv(os.path.join(DATA, "oma_ssi_merged.csv"), index=False)
         print("\n  -> data/oma_ssi_merged.csv")
 
+    # 3600 s records; not part of --all
     if a.longrec:
         print("\n" + "=" * 78)
         print("THE MERGED REGIME ON AN HOUR-LONG RECORD")
         print("=" * 78)
-        print("  600 s is the ordinary length of an ambient stay record.  If\n"
-              "  the pair separates at 3600 s and not at 600 s, the limit is\n"
-              "  the record and not the method, and that is worth knowing\n"
-              "  before anyone concludes that subspace identification cannot\n"
-              "  do it.")
+        print("  600 s is a typical ambient stay record length.  If the\n"
+              "  pair separates at 3600 s and not at 600 s, the limit is set\n"
+              "  by the record length and not by the method.")
         lr = merged_study(zetas=(0.020, 0.030), seeds=range(6),
                           configs=("stay", "stay+deck"), methods=("cov",),
                           taus=(16.0, 32.0), dur=3600.0, snr_db=a.snr)

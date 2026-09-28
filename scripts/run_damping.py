@@ -1,66 +1,11 @@
 # -*- coding: utf-8 -*-
 """Damping and peak resolvability at a deck-stay crossing.
 
-Everything upstream of this script treats the two veering branches as two
-frequencies an engineer can read off a spectrum.  With damping they are two
-finite-width resonances, and if the split is small enough compared with the
-half-power bandwidth the spectrum shows ONE peak, the crossing is invisible,
-and the bias of the isolated-cable inversion arrives with no warning sign at
-all.  This script establishes when that happens, twice over: a closed-form
-criterion evaluated against the campaign, and a driven FRF of the worked
-bridge with Rayleigh damping, where the peak pair is watched until it
-merges.
-
-THE CRITERION.  Near the crossing the driving-point receptance at a stay
-sensor is dominated by the hybrid pair at f+- = f0 (1 +- s/2), each with
-damping ratio zeta and POSITIVE residue phi_j(p)^2 (a driving point sees
-every mode in phase).  With the reduced frequency u = (omega - omega_0) /
-(zeta omega_0) and the resolution number
-
-    r = s / (2 zeta)        (half separation over half-power half-width)
-
-the equal-residue pair sums, near resonance, to
-
-    h(u)  proportional to  1/(1 + i(u - r)) + 1/(1 + i(u + r)).
-
-|h| is symmetric in u, so the midpoint is a stationary point; the pair is
-resolvable exactly when the midpoint is a local MINIMUM.  Differentiating
-|h|^2 = 4 (1 + u^2) / [(u^2 - r^2 + 1)^2 + 4 u^2] twice at u = 0 gives the
-condition (r^2 + 1)^2 > 2 (1 - r^2), i.e. r^4 + 4 r^2 - 1 > 0, i.e.
-
-    r^2 > sqrt(5) - 2,   so   s > 2 sqrt(sqrt(5) - 2) zeta = 0.9717 zeta.
-
-Three remarks.  First, the folklore statement "separation must exceed the
-half-power bandwidth", s > 2 zeta, is conservative by a factor 2.06: the
-coherent in-phase sum keeps an interference notch between the peaks (the
-driving-point antiresonance) that survives down to s = 0.97 zeta.  Second,
-a dip that exists mathematically is not a dip a peak picker acts on; the
-practical criterion used throughout is a 3 dB prominence, and the r at
-which the dip depth passes 3 dB, r_3db = 1.14, is found numerically from
-the same two-Lorentzian model and sits between the two closed forms.
-Third, the algebra is verified here by computation before it is used,
-because this project has a record of plausible closed forms failing (seven,
-listed in notes/gap_statement.md).
-
-Part 1 evaluates the criterion against the campaign's closed-form split s
-(data/campaign.csv), on the same graded subset every figure uses
-(MAC > 0.5, xi > 150), for zeta in {0.2, 0.5, 1.0, 2.0} %.
-
-Part 2 rebuilds the worked bridge of run_identify2.py at its exact-tuning
-tension T = 151.6 kN, adds Rayleigh damping C = alpha M + beta K calibrated
-so both hybrid modes carry exactly the target zeta (two-point fit at the
-pair frequencies, which for a pair this close is alpha = zeta omega_0,
-beta = zeta / omega_0 to within 0.01 %), and computes the transverse
-receptance at the stay accelerometer DOF (2 m up the chord,
-cd.cable_sensor_dof(2.0)) under a unit force at the same DOF, 2.5-4.2 Hz.
-Modal superposition over all reduced modes is exact for Rayleigh damping
-and is cross-checked against direct complex solves of
-(K + i omega C - omega^2 M) at spot frequencies.  Peaks are counted with a
-3 dB prominence floor, and the merge zeta is then located by bisection and
-compared with the closed-form prediction.
-
-Writes data/damping.csv.
-
+Part 1 applies the two-Lorentzian criterion (a dip between the peaks exists for
+s > 0.9717 zeta) to the graded designs of data/campaign.csv. Part 2 computes
+the driving-point receptance at the stay sensor of the example bridge at
+T = 151.6 kN with Rayleigh damping and finds the damping ratio at which the
+two peaks merge. Writes data/damping.csv.
 Run:  python3 scripts/run_damping.py
 """
 
@@ -82,19 +27,17 @@ from cablefe import CableDeck  # noqa: E402
 
 DATA = os.path.join(ROOT, "data")
 
-# the worked bridge of the identification campaign, values copied from
-# scripts/run_identify2.py BRIDGE and asserted against that file's text
-# below so the copy cannot drift silently
+# example bridge of scripts/run_identify2.py; check_bridge_copy() asserts it
 BRIDGE = dict(Ld=80.0, EId=2.0e9, md=1000.0,
               Lc=25.0, EIc=1.2e4, mc=5.5, EA=1.4e8,
               theta=np.deg2rad(35.0), nd=40, nc=40)
-T_TUNE = 151.6e3                    # exact-tuning tension of that campaign
+T_TUNE = 151.6e3                    # N, exact-tuning tension of that bridge
 ZETAS = (0.002, 0.005, 0.010, 0.020)
 FBAND = (2.5, 4.2)
 NF = 17001                          # df = 1e-4 Hz; the narrowest peak here
                                     # (zeta 0.2 %) is 133 points wide
 PROM_DB = 3.0
-R_DIP = np.sqrt(np.sqrt(5.0) - 2.0)     # exact dip-existence threshold
+R_DIP = np.sqrt(np.sqrt(5.0) - 2.0)     # dip exists for r > R_DIP
 
 
 def check_bridge_copy():
@@ -106,9 +49,8 @@ def check_bridge_copy():
         assert tok in src, f"BRIDGE drift: {tok} not in run_identify2.py"
 
 
-# ---------------------------------------------------------------------------
-# the two-Lorentzian model, and the numerical verification of the algebra
-# ---------------------------------------------------------------------------
+# --- two-Lorentzian pair model --------------------------------------------
+# u = (omega - omega_0) / (zeta omega_0), r = s / (2 zeta)
 
 def pair_mag(u, r):
     """|h(u)| for the equal-residue in-phase pair at resolution number r."""
@@ -141,23 +83,21 @@ def bisect(pred, lo, hi, it=40):
 def model_thresholds():
     r_dip_num = bisect(dip_exists, 0.05, 2.0)
     assert abs(r_dip_num - R_DIP) < 1e-4, \
-        f"algebra wrong: numeric {r_dip_num:.6f} vs closed form {R_DIP:.6f}"
+        f"dip threshold mismatch: numeric {r_dip_num:.6f} vs closed form {R_DIP:.6f}"
     r_3db = bisect(lambda r: dip_depth_db(r) > PROM_DB, r_dip_num, 6.0)
     return r_dip_num, r_3db
 
 
-# ---------------------------------------------------------------------------
-# part 2: the driven bridge
-# ---------------------------------------------------------------------------
+# --- driven bridge ---------------------------------------------------------
 
 class DrivenBridge:
-    """The worked bridge with its eigensolution computed once and cached."""
+    """The example bridge with its eigensolution computed once and cached."""
 
     def __init__(self, T):
         self.cd = CableDeck(T=T, **BRIDGE)
         w2, V = eigh(self.cd.K, self.cd.M)
         self.w = np.sqrt(np.maximum(w2, 0.0))       # all reduced modes
-        Phi = self.cd.Lmat @ V                       # mass-normalised
+        Phi = self.cd.Lmat @ V                       # mass-normalized
         self.p = self.cd.cable_sensor_dof(2.0)
         self.phip = Phi[self.p, :]
         f = self.w / (2.0 * np.pi)
@@ -166,7 +106,7 @@ class DrivenBridge:
         self.f_lo, self.f_hi = float(inb[0]), float(inb[1])
 
     def rayleigh(self, zeta):
-        """alpha, beta putting exactly zeta on BOTH pair modes."""
+        """Rayleigh alpha, beta giving damping ratio zeta on both pair modes."""
         wa, wb = 2 * np.pi * self.f_lo, 2 * np.pi * self.f_hi
         return (2.0 * zeta * wa * wb / (wa + wb),
                 2.0 * zeta / (wa + wb))
@@ -182,11 +122,8 @@ class DrivenBridge:
     def verify_frf(self, zeta, fgrid, nspot=5, seed=0):
         """Spot-check the modal sum against direct complex solves.
 
-        The comparison is normalised by the band peak, not pointwise: at the
-        antiresonance notch |H| is orders of magnitude below the peaks and
-        eigen-solver roundoff is amplified there, so a pointwise relative
-        test measures the conditioning of the notch, not the correctness of
-        the sum.
+        Errors are normalized by the band peak; a pointwise relative error is
+        ill-conditioned at the antiresonance notch.
         """
         H = self.frf(zeta, fgrid)
         scale = np.abs(H).max()
@@ -217,7 +154,7 @@ def peak_census(fgrid, H):
     if len(fp) >= 2:
         out["f_pk2"] = fp[1]
         out["sep_hz"] = fp[1] - fp[0]
-    if len(pk0) >= 2:                 # dip depth below the LOWER maximum
+    if len(pk0) >= 2:                 # dip depth below the lower maximum
         lo, hi = pk0[0], pk0[-1]
         dip = db[lo:hi + 1].min()
         out["dip_db"] = min(db[lo], db[hi]) - dip
@@ -233,7 +170,7 @@ def main():
     print(f"  dip exists      r > {r_dip_num:.4f}  ->  "
           f"s > {2*r_dip_num:.4f} zeta   (closed form 2 sqrt(sqrt5-2))")
     print(f"  dip >= 3 dB     r > {r_3db:.4f}  ->  s > {2*r_3db:.4f} zeta")
-    print("  half-power folklore                s > 2 zeta")
+    print("  half-power rule                    s > 2 zeta")
 
     rows = [dict(record="model_threshold", r_dip=r_dip_num, r_3db=r_3db,
                  s_over_zeta_dip=2 * r_dip_num, s_over_zeta_3db=2 * r_3db)]
@@ -242,7 +179,7 @@ def main():
     d = pd.read_csv(os.path.join(DATA, "campaign.csv"))
     g = d[(d.mac > 0.5) & (d.xi > 150)]
     s = g.s.to_numpy()
-    print(f"\ncampaign: {len(s)} graded designs "
+    print(f"\ndesign set: {len(s)} graded designs "
           f"(median s = {np.median(s)*100:.2f} %)")
     print("  zeta   unresolvable fraction:   dip     3 dB    s<2zeta")
     for z in ZETAS:
@@ -257,15 +194,15 @@ def main():
               f"{fr['frac_unres_dip']:.3f}   {fr['frac_unres_3db']:.3f}"
               f"   {fr['frac_unres_halfpower']:.3f}")
 
-    # ---- part 2: the driven worked bridge --------------------------------
+    # ---- part 2: the driven example bridge --------------------------------
     br = DrivenBridge(T_TUNE)
     f0 = 0.5 * (br.f_lo + br.f_hi)
     s_meas = (br.f_hi - br.f_lo) / f0
-    print(f"\nworked bridge at T = {T_TUNE/1e3:.1f} kN:")
+    print(f"\nexample bridge at T = {T_TUNE/1e3:.1f} kN:")
     print(f"  hybrid pair {br.f_lo:.4f} / {br.f_hi:.4f} Hz, "
           f"f0 = {f0:.4f} Hz, s = {100*s_meas:.3f} %")
 
-    # confirm 151.6 kN is (near) the closest approach before leaning on it
+    # check that 151.6 kN is near the closest approach of the pair
     Ts = np.linspace(145e3, 158e3, 27)
     gaps = []
     for t in Ts:
@@ -273,7 +210,7 @@ def main():
         gaps.append(b.f_hi - b.f_lo)
     tmin = Ts[int(np.argmin(gaps))]
     print(f"  minimum pair gap over 145-158 kN at T = {tmin/1e3:.1f} kN "
-          f"(gap {min(gaps):.4f} Hz); using the mandated 151.6 kN")
+          f"(gap {min(gaps):.4f} Hz); analysis at 151.6 kN")
 
     fgrid = np.linspace(FBAND[0], FBAND[1], NF)
     worst = br.verify_frf(ZETAS[0], fgrid)
@@ -290,7 +227,7 @@ def main():
               else f"{c['f_pk1']:.4f}+{c['f_pk2']:.4f} Hz")
         print(f"    zeta {100*z:4.1f} %:  {c['n_peaks_3db']} peak(s) "
               f"[{pk}], dip {c['dip_db']:.2f} dB "
-              f"-> {'MERGED' if merged else 'resolvable'}")
+              f"-> {'merged' if merged else 'resolvable'}")
 
     # merge zeta by bisection, against the two-Lorentzian predictions
     def merged_at(z):

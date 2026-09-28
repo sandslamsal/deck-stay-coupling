@@ -1,47 +1,12 @@
 # -*- coding: utf-8 -*-
 """Coupled cable-deck finite element model for a cable-stayed footbridge.
 
-The point of this model is to possess something the models used in cable
-force identification do not: stay cables that carry distributed mass and
-therefore have transverse modes of their own, attached to a deck that has
-modes of its own, so that the two can interact.
-
-Two components, both planar Euler-Bernoulli chains:
-
-    deck    simply supported beam, EI_d, m_d, span L_d
-    stay    tensioned beam, EI_c, m_c, chord length L_c, tension T,
-            inclined at theta to the horizontal, top end held at a rigid
-            pylon, bottom end anchored to the deck
-
-The stay enters the deck problem twice, and both paths matter:
-
-    axially     k_ax = (EA/L_c) sin^2(theta) at the anchorage, the vertical
-                restraint that makes the deck cable-stayed rather than a
-                plain beam
-    transversely  v_cable(bottom) = cos(theta) * w_deck(anchorage), the tie
-                that lets a deck mode drive the stay and a stay mode push
-                back on the deck
-
-The second path is the one under examination. It is what produces frequency
-loci veering when a stay frequency approaches a deck frequency, and it is
-absent from every model behind the incumbent tension formulas, which treat
-the stay as an isolated element with idealised ends.
-
-Assumptions, all stated because the pilot rests on them:
-
-* planar motion only, so out-of-plane stay modes and deck torsion are not
-  represented;
-* straight chord, so sag is neglected.  Defensible for the short steep stays
-  of a footbridge, where the Irvine parameter is small, and checked in
-  ``scripts/verify_cablefe.py`` rather than assumed;
-* rigid pylon;
-* the stay tension is a parameter, not a result of a form-finding step;
-* no damping.  The pilot is about frequencies and mode shapes.
-
-The element matrices are standard: Euler-Bernoulli bending, the consistent
-geometric stiffness for axial tension, and the consistent mass matrix.  With
-``EI -> 0`` the stay reduces to the taut string and with ``T -> 0`` to a
-beam, and both limits are checked.
+A simply supported Euler-Bernoulli deck and one tensioned-beam stay, inclined
+at theta, held at a rigid pylon and anchored to the deck. The stay acts on the
+deck through an axial spring ``k_ax = (EA/L_c) sin^2(theta)`` and a transverse
+tie ``v_stay(bottom) = cos(theta) w_deck(anchorage)``. Planar motion, straight
+chord (no sag), no damping. Also provides closed-form frequencies, the
+isolated-cable tension inversions and the veering-split law.
 """
 
 from __future__ import annotations
@@ -50,9 +15,7 @@ import numpy as np
 from scipy.linalg import eigh
 
 
-# ---------------------------------------------------------------------------
-# elements
-# ---------------------------------------------------------------------------
+# --- elements ---
 
 def beam_element(l, EI, m, T=0.0):
     """Planar Euler-Bernoulli element with axial tension.
@@ -101,12 +64,10 @@ def chain(L, nel, EI, m, T=0.0):
     return K, M
 
 
-# ---------------------------------------------------------------------------
-# closed forms, used for verification and for placing the campaign
-# ---------------------------------------------------------------------------
+# --- closed forms ---
 
 def string_freq(n, L, T, m):
-    """Taut string, pinned ends.  The formula the incumbent method inverts."""
+    """Taut-string frequency with pinned ends, ``f_n = (n / 2L) sqrt(T/m)``."""
     return n / (2.0 * L) * np.sqrt(T / m)
 
 
@@ -128,27 +89,12 @@ def beam_freq(n, L, EI, m):
 def irvine_lambda2(L, T, EA, m, theta, g=9.80665):
     """Irvine sag parameter of an inclined stay, referred to the chord.
 
-    ``lambda^2 = (m g cos(theta) L / T)^2 * L / (T L_e / EA)``: the gravity
-    component normal to the chord, the chord tension ``T``, the chord length
-    ``L``, the normal sag ``d_n = m g cos(theta) L^2 / (8 T)`` and
-    ``L_e = L (1 + 8 (d_n / L)^2)``.  Irvine's treatment of the inclined
-    cable: the horizontal-cable theory holds with ``g -> g cos(theta)`` and
-    the chord tension in place of the horizontal one.  Small values mean the
-    straight-chord idealisation is safe.
-
-    This function has been corrected twice, and both corrections are
-    recorded here rather than silently made.  The first version used ``T``
-    where the horizontal-projection form uses ``H`` and carried a factor
-    that cancelled; nothing called it.  The second version (submitted
-    manuscript, campaign column ``lam2``) used the horizontal-projection form
-    ``(m g L_h / H)^2 L_h / (H L_e / EA)`` with ``H = T cos(theta)``,
-    ``L_h = L cos(theta)`` and ``m`` per unit ARC length, which for an
-    inclined cable overstates the chord-based parameter by ``1 / cos^3
-    (theta)`` (1.82 at 35 degrees).  The chord form is the one the
-    two-dimensional finite element of ``cablefe2d.py`` verifies against
-    Irvine's symmetric-mode equation, to 0.06 % over lambda^2 = 0.25 to 8
-    (``scripts/verify_cablefe2d.py``), so it is the form kept.  Every
-    lambda^2 quoted in the revised manuscript is recomputed with it.
+    ``lambda^2 = (m g cos(theta) L / T)^2 * L / (T L_e / EA)`` with the
+    normal sag ``d_n = m g cos(theta) L^2 / (8 T)`` and
+    ``L_e = L (1 + 8 (d_n / L)^2)``. This is Irvine's horizontal-cable result with ``g -> g cos(theta)`` and the
+    chord tension in place of the horizontal one; scripts/verify_cablefe2d.py
+    checks it against a 2-D finite element model. Small values mean the
+    straight-chord idealization is safe.
     """
     dn = m * g * np.cos(theta) * L ** 2 / (8.0 * T)
     Le = L * (1.0 + 8.0 * (dn / L) ** 2)
@@ -156,7 +102,7 @@ def irvine_lambda2(L, T, EA, m, theta, g=9.80665):
 
 
 def sag_ratio(L, T, m, theta, g=9.80665):
-    """Sag as a fraction of the chord, the direct statement of the same thing."""
+    """Sag as a fraction of the chord length."""
     H = T * np.cos(theta)
     Lh = L * np.cos(theta)
     return (m * g * Lh ** 2 / (8.0 * H)) / L
@@ -172,9 +118,7 @@ def xi_param(L, T, EI):
     return L * np.sqrt(T / EI)
 
 
-# ---------------------------------------------------------------------------
-# coupled system
-# ---------------------------------------------------------------------------
+# --- coupled system ---
 
 class CableDeck:
     """One deck with one stay, assembled and reduced by the tie constraint.
@@ -245,9 +189,9 @@ class CableDeck:
     # -- solution ---------------------------------------------------------
 
     def modes(self, nmodes=30):
-        """Mass-normalised modes of the coupled system.
+        """Mass-normalized modes of the coupled system.
 
-        Returns ``(f, Phi)`` with ``f`` in Hz ascending and ``Phi`` the FULL
+        Returns ``(f, Phi)`` with ``f`` in Hz ascending and ``Phi`` the full
         DOF mode shapes, columns matching ``f``.
         """
         w2, V = eigh(self.K, self.M)
@@ -266,32 +210,20 @@ class CableDeck:
         return [2 * i for i in range(self.nd + 1)]
 
     def cable_sensor_dof(self, s_from_anchor):
-        """DOF of a stay-mounted accelerometer ``s_from_anchor`` up the chord.
-
-        Field practice puts the accelerometer a short distance above the
-        lower anchorage, where it is reachable, so that is what is modelled.
-        """
+        """DOF of a stay sensor ``s_from_anchor`` meters up the chord."""
         i = int(round((1.0 - s_from_anchor / self.Lc) * self.nc))
         i = max(0, min(self.nc, i))
         return self.nD + 2 * i
 
     def participation(self, Phi, dof):
-        """Absolute mass-normalised modal amplitude at one DOF."""
+        """Absolute mass-normalized modal amplitude at one DOF."""
         return np.abs(Phi[dof, :])
 
     def energy_split(self, Phi):
         """Fraction of modal kinetic energy in the stay, per mode.
 
-        The generalized mass ratio Liu, Lin and Wang use to grade how coupled
-        a mode is.  Near 1 the mode is a stay mode, near 0 a deck mode, and
-        intermediate values are the hybrids that veering produces.
-
-        Written as two matrix products rather than a loop over modes.  The
-        loop form spent 2.7 s on 40 modes of a 164 degree of freedom system,
-        because each ``p @ M @ p`` is a BLAS call too small to cover its own
-        threading overhead.  Cast as one ``M @ Phi`` per component it costs
-        0.013 s, which matters because the figures call this at every step of
-        a tension range.
+        The generalized mass ratio of Liu, Lin and Wang (2012): near 1 a stay
+        mode, near 0 a deck mode, in between a hybrid.
         """
         Md_full, Mc_full = self._mass_blocks()
         ed = np.einsum('ij,ij->j', Phi, Md_full @ Phi)
@@ -330,17 +262,14 @@ class CableDeck:
         return f[:nmodes]
 
 
-# ---------------------------------------------------------------------------
-# the incumbent inversion, applied exactly as a field engineer would
-# ---------------------------------------------------------------------------
+# --- the isolated-cable tension inversions ---
 
 def pick_peaks(f, Phi, sensor_dof, nmax=8, rel_floor=0.05):
     """Peaks a stay-mounted accelerometer would show, in frequency order.
 
     Modes are kept when their amplitude at the sensor is at least
-    ``rel_floor`` of the largest, which is the practical statement that a
-    peak has to rise out of the spectrum to be picked. No knowledge of which
-    modes are "really" stay modes is used, because the engineer has none.
+    ``rel_floor`` of the largest. No knowledge of which modes are stay modes
+    is used.
     """
     amp = np.abs(Phi[sensor_dof, :])
     if amp.max() <= 0:
@@ -365,11 +294,8 @@ def invert_multimode(f_peaks, L, m, n=None):
 
     For a pinned-pinned tensioned beam
     ``f_n^2 / n^2 = T/(4 m L^2) + EI pi^2 n^2 / (4 m L^4)``,
-    linear in ``n^2``.  The intercept gives T and the slope gives EI.  This
-    is the variant field practice prefers because it returns the bending
-    stiffness and does not rely on identifying a single mode order, and it
-    is the variant with the most to lose when one picked peak is not a stay
-    mode at all.
+    linear in ``n^2``: the intercept gives T and the slope gives EI.
+    Returns ``(T, EI)``, or NaN for fewer than three peaks.
     """
     f_peaks = np.asarray(f_peaks, dtype=float)
     if n is None:
@@ -387,21 +313,12 @@ def invert_multimode(f_peaks, L, m, n=None):
 
 
 def screened_pick(f_all, amp, nmax=5, tol=0.04):
-    """Harmonic-comb screening, which is what careful practice actually does.
+    """Harmonic-comb screening of spectral peaks.
 
-    An engineer does not number spectral peaks 1, 2, 3 blindly.  The stay
-    modes of a near-taut cable are close to a harmonic series, so the peaks
-    are searched for the comb that best explains them: each candidate peak is
-    tried as the fundamental, its harmonics are matched against the peak
-    list, and the candidate explaining the most peaks wins.  A deck mode
-    sitting next to a stay mode is then rejected, because it does not fall on
-    the comb.
-
-    This sits between the oracle, which never mis-assigns, and blind
-    numbering, which always does.  It is the realistic case, and unlike blind
-    numbering its answer does not hinge on where the amplitude floor is put.
-
-    Returns ``(freqs, orders)`` of the surviving peaks.
+    Each peak is tried as the fundamental, its harmonics within ``tol`` are
+    matched against the peak list, and the candidate explaining the most
+    peaks wins, so a deck mode off the comb is rejected. Returns
+    ``(freqs, orders)`` of the surviving peaks.
     """
     f_all = np.asarray(f_all, dtype=float)
     order = np.argsort(f_all)
@@ -417,9 +334,7 @@ def screened_pick(f_all, amp, nmax=5, tol=0.04):
             if abs(fs[j] - target) / target <= tol:
                 got_f.append(fs[j])
                 got_n.append(n)
-        # score on how much of the comb is explained, tie-broken by
-        # preferring the lower fundamental so a harmonic is not mistaken
-        # for the fundamental itself
+        # strict > keeps the lower fundamental on ties (fs is ascending)
         score = len(got_f)
         if score > best[0]:
             best = (score, (np.array(got_f), np.array(got_n)))
@@ -428,50 +343,31 @@ def screened_pick(f_all, amp, nmax=5, tol=0.04):
     return best[1]
 
 
-# ---------------------------------------------------------------------------
-# the governing group and the closed form for the veering width
-# ---------------------------------------------------------------------------
+# --- the governing group and the veering split ---
 
 def mu_effective(M_stay, phi_anchor):
     """Effective modal mass ratio governing deck-stay veering.
 
-    The plain ratio of stay modal mass to deck modal mass is NOT the group
-    that governs, and using it is a trap: a deck mode with a node at the
-    anchorage cannot couple to the stay at all, however light the deck is.
-    What governs is the deck mode's participation AT THE ANCHORAGE,
-
         mu_eff = M_stay * phi_a^2
 
-    with ``phi_a`` the mass-normalised deck mode amplitude there.  This is the
-    generalized mass ratio Liu, Lin and Wang use to grade deck-stay coupling,
-    arrived at here independently and by correcting a wrong first guess.
+    with ``phi_a`` the mass-normalized deck mode amplitude at the anchorage.
+    The plain ratio of stay to deck modal mass does not govern: a deck mode
+    with a node at the anchorage does not couple to the stay. This is the
+    generalized mass ratio of Liu, Lin and Wang (2012).
     """
     return M_stay * phi_anchor ** 2
 
 
 def veering_split(mu_eff, theta, n=1):
-    """Normalised frequency split of the hybrid pair at exact tuning.
+    """Normalized frequency split of the hybrid pair at exact tuning.
 
         (f+ - f-) / f0 = (2 / (n pi)) cos(theta) sqrt(mu_eff)
 
-    for stay mode order ``n``.  Derived by expanding the exact characteristic
-    equation about ``kL = n pi``: with ``sin(kL) -> (-1)^n delta`` and
-    ``cos(kL) -> (-1)^n`` the half split solves
-    ``x^2 = c^2 T k / (2 n pi M)``, and ``k = n pi / L`` makes the tension and
-    the mode order cancel to leave ``x = c sqrt(T / (2 L M))``, independent of
-    ``n`` in absolute terms and therefore falling as ``1/n`` once normalised
-    by ``f_n``.
-
-    The ``1/n`` matters and was missing from the first version of this
-    function.  Every check of that version was run at ``n = 1``, where the
-    factor is unity, so all of them passed while the law was wrong for every
-    higher mode order.  The campaign caught it, and
-    ``scripts/verify_coupling.py`` now exercises ``n = 1`` to ``5``
-    specifically so it cannot recur.
-
-    Because the incumbent inversion takes tension as proportional to the
-    square of frequency, this split is also, to leading order, the tension
-    error the isolated-cable formula incurs at an exact crossing.
+    for stay mode order ``n``, from expanding the exact characteristic
+    equation about ``kL = n pi``. The absolute split does not depend on
+    ``n``, so the normalized split falls as ``1/n``; scripts/verify_coupling.py
+    checks ``n = 1`` to ``5``. To leading order this is also the tension error
+    of the isolated-cable inversion at exact tuning.
     """
     return 2.0 / (n * np.pi) * np.cos(theta) * np.sqrt(mu_eff)
 

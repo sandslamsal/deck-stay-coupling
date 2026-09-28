@@ -1,40 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Robustness of the screening criterion to an unknown true tension, and
-statistical hygiene of the campaign.
+"""Screening criterion under a wrong nominal tension, and campaign statistics.
 
-PART 1 -- ROBUSTNESS.  The criterion |d| >= (s^2 - tol^2)/(2 tol) needs the
-detuning d = (f_iso - f_deck)/f_iso, and f_iso depends on the very tension
-being sought.  In practice the design (nominal) tension is used.  This part
-asks what the criterion does when that nominal tension is wrong by -10 % or
-+10 %: f_iso is recomputed from the pinned-pinned tensioned-beam relation
-with T*0.9 and T*1.1, d is recomputed against the same measured f_deck, and
-the criterion's classification at tol = 2, 5, 10 % is compared with the true
-coupling error |eps - eps_control| for every graded design in
-data/campaign.csv (mac > 0.5 and xi > 150).  The split s does not move: it
-depends on mu_eff = M_stay phi_a^2 and theta only, not on T.
-
-Because f_iso is monotonic in the assumed tension, d sweeps a band
-[d(-10%), d(+10%)] as the assumed tension sweeps the band, and if that band
-straddles d = 0 the worst case inside it is an exact crossing, which the two
-endpoints alone do not exhibit.  The straddle count is therefore reported
-alongside the endpoint counts.
-
-PART 2 -- HYGIENE.  (a) The R^2 of the closed form eps_pred against the
-coupling error |eps - eps_control| is reported on ALL usable designs with no
-xi filter, and on the graded subset, so the reader can see what the xi > 150
-gate does and does not do; the designs with xi < 150 are counted and their
-control (no-coupling, pure bending-stiffness) bias is stated.  (b) The
-attrition from 12000 drawn designs to the usable set is audited by re-running
-the sampling logic of scripts/run_campaign.py one_case() for 2000 seeds and
-counting every rejection branch.  Every branch fires BEFORE the coupled
-model is solved and before any error is computed, so the census shows the
-attrition is feasibility screening, not result-based selection.  The branch
-labelled "stress bounds" (120 <= sigma <= 800 MPa) is equivalently a bound
-on T/mc = sigma/rho, the group that sets the stay frequency.
-
-Writes data/robustness.csv (one row per graded design with the recomputed
-detunings and per-tolerance classifications) and prints the misclassification
-tables, the R^2 audit and the rejection census.
+Part 1 recomputes the detuning d with the nominal tension off by -10 % and
++10 % and scores the criterion |d| >= (s^2 - tol^2)/(2 tol) against the true
+coupling error of each graded design. Part 2a gives R^2 of the closed form with
+and without the xi gate. Part 2b replays the sampling of run_campaign.one_case()
+and counts each rejection branch. Reads data/campaign.csv; writes data/robustness.csv.
 
 Run:  python3 scripts/run_robustness.py
 """
@@ -57,20 +28,16 @@ import run_campaign as rc  # noqa: E402  (import only; main() is guarded)
 
 DATA = os.path.join(ROOT, "data")
 TOLS = (0.02, 0.05, 0.10)
-N_DRAWN = 12000          # designs drawn in the published campaign
+N_DRAWN = 12000          # designs drawn by run_campaign.py
 N_CENSUS = 2000          # seeds re-run here for the rejection census
 
 
-# ---------------------------------------------------------------------------
-# Part 1: criterion robustness to a wrong nominal tension
-# ---------------------------------------------------------------------------
+# --- Part 1: criterion robustness to a wrong nominal tension ---
 
 def detuning_with_assumed_tension(row, factor):
-    """d recomputed as practice would: f_iso from the beam relation with the
-    assumed (nominal) tension, f_deck as measured.
+    """Detuning d with f_iso from the assumed tension factor*T and the campaign f_deck.
 
-    NOTE: ``row["T"]``, never ``row.T`` -- on a pandas Series ``.T`` is the
-    transpose attribute (the whole Series), not the tension column."""
+    Uses ``row["T"]``, since ``row.T`` on a pandas Series is the transpose."""
     f_iso = tensioned_beam_freq(row["n_stay"], row["Lc"], factor * row["T"],
                                 row["EIc"], row["mc"])
     return (f_iso - row.f_deck) / f_iso
@@ -86,15 +53,15 @@ def part1(g):
     print("  PART 1  --  CRITERION ROBUSTNESS TO AN UNKNOWN TRUE TENSION")
     print("=" * 74)
     print(f"    graded designs (mac > 0.5, xi > 150): {len(g)}")
-    print("    d recomputed with the nominal tension wrong by -10 % / +10 %;")
+    print("    d recomputed with the nominal tension off by -10 % / +10 %;")
     print("    s is tension-independent and does not move.")
     print()
 
     # detuning under each tension assumption
-    d_true = g.d.values                      # committed d from the campaign
+    d_true = g.d.values                      # d as stored by the campaign
     d_chk = g.apply(lambda r: detuning_with_assumed_tension(r, 1.0), axis=1)
     resid = np.abs(d_chk.values - d_true)
-    print(f"    consistency: |d(recomputed, T) - d(campaign)| "
+    print(f"    consistency: |d(recomputed, T) - d(stored)| "
           f"max = {resid.max():.2e}")
     d_m10 = g.apply(lambda r: detuning_with_assumed_tension(r, 0.9),
                     axis=1).values
@@ -139,9 +106,7 @@ def part1(g):
     return out
 
 
-# ---------------------------------------------------------------------------
-# Part 2a: R^2 with and without the xi gate
-# ---------------------------------------------------------------------------
+# --- Part 2a: R^2 with and without the xi gate ---
 
 def r2_report(sub, label):
     coup = (sub.eps - sub.eps_control).abs()
@@ -161,7 +126,7 @@ def part2a(d, g):
     print("=" * 74)
     print("    target in every fit: coupling error |eps - eps_control|")
     print()
-    r2_all = r2_report(d, "ALL usable designs (no mac, no xi filter)")
+    r2_all = r2_report(d, "all usable designs (no mac or xi filter)")
     r2_graded = r2_report(g, "graded subset (mac > 0.5, xi > 150)")
 
     lo = d[d.xi < 150]
@@ -180,17 +145,12 @@ def part2a(d, g):
     return r2_all, r2_graded
 
 
-# ---------------------------------------------------------------------------
-# Part 2b: rejection census -- why 12000 draws became 699 usable designs
-# ---------------------------------------------------------------------------
+# --- Part 2b: rejection census ---
 
 def classify_seed(seed):
-    """Replicates the draw sequence of run_campaign.one_case(seed) exactly,
-    stopping at the first rejection branch and naming it.  Every branch fires
-    before the coupled model is assembled, so no branch can see a result.
+    """Replay the draws of run_campaign.one_case(seed); name the first rejection.
 
-    The code below mirrors one_case() line for line (same rng call order);
-    any divergence would break the consistency check in census()."""
+    Mirrors one_case() in the same rng call order; census() checks the match."""
     rng = np.random.default_rng(seed)
 
     Ld = float(np.exp(rng.uniform(np.log(40.0), np.log(600.0))))
@@ -242,8 +202,8 @@ BRANCHES = (
 
 def census(d):
     print("=" * 74)
-    print("  PART 2b  --  REJECTION CENSUS: THE ATTRITION IS FEASIBILITY, "
-          "NOT RESULTS")
+    print("  PART 2b  --  REJECTION CENSUS BY "
+          "BRANCH")
     print("=" * 74)
     print(f"    re-running the sampling logic of one_case() for "
           f"{N_CENSUS} seeds ...")
@@ -253,7 +213,7 @@ def census(d):
     for seed in range(N_CENSUS):
         reason = classify_seed(seed)
         if reason == "pass_cheap":
-            # the only remaining branch is the FE try/except; run it for real
+            # the remaining branch is the FE eigen-solve; run one_case() itself
             row = rc.one_case(seed)
             if row is None:
                 counts["fe failure (eigen-solve raised)"] += 1
@@ -272,7 +232,7 @@ def census(d):
           f"{100*n_usable/N_CENSUS:6.2f}%")
     print()
     print(f"    usable rate in census: {100*n_usable/N_CENSUS:.2f} %  "
-          f"(published campaign: 699/12000 = {699/120:.2f} %)")
+          f"(full design set: 699/12000 = {699/120:.2f} %)")
 
     # cross-check: the campaign ran seeds 0..11999 in order and kept the
     # non-None rows, so the census's usable rows for seeds 0..N_CENSUS-1
@@ -289,19 +249,17 @@ def census(d):
         raise RuntimeError("census does not reproduce campaign.csv; the "
                            "replicated sampling logic has diverged from "
                            "run_campaign.one_case")
-    print("    every rejection branch fires before the coupled model is")
-    print("    solved: the attrition is geometric/stress feasibility, not")
-    print("    selection on the outcome.")
+    print("    every rejection branch acts before the coupled model is")
+    print("    solved; rejections come from geometric and stress limits,")
+    print("    not from the computed error.")
     return counts, n_usable
 
-
-# ---------------------------------------------------------------------------
 
 def main():
     d = pd.read_csv(os.path.join(DATA, "campaign.csv"))
     g = d[(d.mac > 0.5) & (d.xi > 150)].copy()
     n_all, n_graded = len(d), len(g)
-    print(f"  campaign: {n_all} usable designs of {N_DRAWN} drawn "
+    print(f"  design set: {n_all} usable designs of {N_DRAWN} drawn "
           f"({100*(1-n_all/N_DRAWN):.1f} % attrition to usable); "
           f"{n_graded} graded ({100*(1-n_graded/N_DRAWN):.1f} % attrition "
           f"to graded)")

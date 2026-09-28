@@ -1,32 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Identification of stay tension from a coupled record, four ways.
+"""Stay tension identification from a coupled record.
 
-The finding this file exists to establish is not that one estimator beats
-another.  It is that **the bias lives in the physics, not in the estimator**.
-Any method that assumes the stay is an isolated element inherits the bias,
-however sophisticated the fitting machinery, and a method that carries the
-coupled boundary condition removes it, however simple.
-
-Four estimators are compared on identical data:
-
-  1. ``invert_string``          the incumbent, in cablefe.py
-  2. ``pinn_identify(coupled=False)``  a physics-informed network whose
-     residual is the ISOLATED tensioned beam with ``v(L) = 0``.  This is the
-     assumption behind the published PINN work on cable force.
-  3. ``fit_closed_form``        least squares on the closed-form coupled
-     model derived in this study, using the pattern of perturbation across
-     mode orders to separate tension from coupling
-  4. ``pinn_identify(coupled=True)``   the same network with the correct
-     Robin end condition and an unknown deck impedance
-
-The boundary condition is the whole argument.  Writing the cable mode as
-``V(x)`` with the anchorage at ``x = L``, the deck reacts through
-
-    T V'(L) + Z V(L) = 0,        Z = (K - M omega^2) / c^2
-
-an impedance that is infinite for a rigid anchorage, recovering ``V(L) = 0``,
-and finite for a real deck.  Estimator 2 asserts the first; estimators 3 and
-4 identify the second.
+Provides a least-squares fit of the closed-form coupled model
+(``fit_closed_form``) and physics-informed networks on the stay mode shape:
+``pinn_identify``, with an isolated end ``V(L) = 0`` or the Robin end
+``T V'(L) + Z V(L) = 0``, ``Z = (K - M omega^2) / c^2``, and
+``pinn_identify_free``, with nothing imposed at the anchorage. The taut-string
+inversion is ``cablefe.invert_string``.
 """
 
 from __future__ import annotations
@@ -35,9 +15,7 @@ import numpy as np
 from scipy.optimize import least_squares
 
 
-# ---------------------------------------------------------------------------
-# 3. closed-form coupled model, fitted by least squares
-# ---------------------------------------------------------------------------
+# --- closed-form coupled model, fitted by least squares ---
 
 def predict_coupled_freqs(orders, T, EI, L, m, f_deck, kappa):
     """Stay-branch frequencies of the coupled system, from the closed form.
@@ -48,9 +26,8 @@ def predict_coupled_freqs(orders, T, EI, L, m, f_deck, kappa):
         shift_n = sign(D_n) * 0.5 * (sqrt(D_n^2 + S_n^2) - |D_n|)
 
     with ``D_n`` the absolute detuning and ``S_n = (2/(n pi)) kappa f_n`` the
-    split, ``kappa = cos(theta) sqrt(mu_eff)`` gathering the coupling into one
-    unknown.  The ``1/n`` is what makes the set of orders informative: the
-    perturbation has a known shape across ``n``, so tension and coupling
+    split, ``kappa = cos(theta) sqrt(mu_eff)``. The ``1/n`` gives the
+    perturbation a known shape across orders, so tension and coupling
     separate.
     """
     orders = np.asarray(orders, dtype=float)
@@ -66,16 +43,15 @@ def fit_closed_form(f_obs, orders, L, m, EI=0.0, fit_EI=False):
     """Identify tension from observed stay-branch frequencies.
 
     Unknowns: tension, the nearby deck frequency, and the coupling amplitude
-    ``kappa``.  Bending stiffness is optional and off by default, because on
-    a real stay it is usually known from the strand schedule and leaving it
-    free trades one bias for another.
+    ``kappa``. Bending stiffness is fitted only if ``fit_EI``; on a real stay
+    it is usually known from the strand schedule.
 
     Returns ``(T, info)``.
     """
     f_obs = np.asarray(f_obs, dtype=float)
     orders = np.asarray(orders, dtype=float)
 
-    # initial guess: the incumbent inversion on the least-perturbed order,
+    # initial guess: the taut-string inversion on the least-perturbed order,
     # taken as the highest available since the split falls as 1/n
     j = int(np.argmax(orders))
     T0 = 4.0 * m * L ** 2 * f_obs[j] ** 2 / orders[j] ** 2
@@ -97,9 +73,7 @@ def fit_closed_form(f_obs, orders, L, m, EI=0.0, fit_EI=False):
                    cost=float(sol.cost), success=bool(sol.success))
 
 
-# ---------------------------------------------------------------------------
-# 2 and 4. physics-informed network on the cable, isolated or coupled
-# ---------------------------------------------------------------------------
+# --- physics-informed network, isolated or coupled end ---
 
 def pinn_identify(x_data, v_data, omega, L, m, EI, coupled=True,
                   T_init=None, epochs=4000, width=32, depth=3, seed=0,
@@ -115,18 +89,15 @@ def pinn_identify(x_data, v_data, omega, L, m, EI, coupled=True,
     frequency of the mode.  ``x_data``/``v_data`` are the sensor positions
     and the mode shape amplitudes read there.
 
-    ``coupled=False`` clamps ``V(L) = 0``, the isolated assumption every
-    published cable-force PINN carries.  ``coupled=True`` replaces it with the
-    Robin condition ``T V'(L) + Z V(L) = 0`` and makes ``Z`` trainable, so the
-    deck's reaction is identified rather than assumed away.
+    ``coupled=False`` clamps ``V(L) = 0``, the isolated-cable assumption.
+    ``coupled=True`` replaces it with the Robin condition
+    ``T V'(L) + Z V(L) = 0`` and makes ``Z`` trainable.
 
     Returns ``(T, info)``.
     """
     import torch
 
-    # These networks are tiny. Multi-threaded BLAS spends more time on
-    # thread handoff than on arithmetic, and on this machine the parallel
-    # build ran roughly an order of magnitude slower than a single thread.
+    # small networks run faster on one thread
     torch.set_num_threads(1)
     torch.manual_seed(seed)
     dev = torch.device(device)
@@ -145,10 +116,8 @@ def pinn_identify(x_data, v_data, omega, L, m, EI, coupled=True,
         T_init = 4.0 * m * L ** 2 * (omega / (2 * np.pi)) ** 2
     logT = torch.tensor(np.log(T_init), dtype=dt, device=dev,
                         requires_grad=True)
-    # The impedance Z = (K - M omega^2)/c^2 CHANGES SIGN through a crossing:
-    # positive below the deck frequency, negative above it. An exponential
-    # parameterisation cannot represent that and pins the fit on the wrong
-    # branch, so Z is carried as a signed variable scaled by T/L.
+    # Z = (K - M omega^2)/c^2 changes sign through a crossing, so it is a
+    # signed variable scaled by T/L rather than an exponential.
     Zscale = T_init / L
     zpar = torch.tensor(1.0, dtype=dt, device=dev, requires_grad=True)
 
@@ -181,11 +150,11 @@ def pinn_identify(x_data, v_data, omega, L, m, EI, coupled=True,
         T = torch.exp(logT)
 
         V = net(xc)
-        # x is normalised by L, so each derivative carries a 1/L
+        # x is normalized by L, so each derivative carries a 1/L
         V2 = d(V, xc, 2) / L ** 2
         V4 = d(V, xc, 4) / L ** 4
         res = EI * V4 - T * V2 - m * omega ** 2 * V
-        # normalise the residual by the tension term so the loss is
+        # normalize the residual by the tension term so the loss is
         # dimensionless and does not simply drive T to zero
         scale = T * torch.mean(torch.abs(V2)) + 1e-30
         loss_pde = torch.mean((res / scale) ** 2)
@@ -210,9 +179,7 @@ def pinn_identify(x_data, v_data, omega, L, m, EI, coupled=True,
             print(f"      ep {ep:5d}  loss {float(loss):.3e}  "
                   f"T {float(torch.exp(logT))/1e3:.1f} kN")
 
-    # Adam gets close; a quasi-Newton polish is what actually converges a
-    # PINN of this size, and without it the comparison would be measuring
-    # optimiser stopping rather than physics.
+    # L-BFGS polish after Adam to converge the fit
     if lbfgs:
         optl = torch.optim.LBFGS(params, max_iter=lbfgs, line_search_fn="strong_wolfe",
                                  tolerance_grad=1e-12, tolerance_change=1e-14)
@@ -245,32 +212,21 @@ def pinn_identify(x_data, v_data, omega, L, m, EI, coupled=True,
         loss=float(loss), hist=hist)
 
 
-# ---------------------------------------------------------------------------
-# 5. the PINN done right: hard pylon condition, NOTHING assumed at the
-#    anchorage, tension-independent residual scale
-# ---------------------------------------------------------------------------
+# --- physics-informed network, anchorage end left free ---
 
 def pinn_identify_free(x_data, v_data, omega, L, m, EI, T_init=None,
                        epochs=6000, width=32, depth=3, seed=0,
                        lr=5e-3, lbfgs=600):
-    """The repaired network.  Three changes from ``pinn_identify``:
+    """Identify tension by a physics-informed net, anchorage end left free.
 
-    1. ``V(0) = 0`` is enforced HARD, by construction ``V = x_hat N(x_hat)``,
-       instead of through a penalty.
-    2. NOTHING is imposed at the anchorage.  The false clamp ``V(L) = 0`` of
-       the isolated variant and the soft Robin penalty of the coupled variant
-       are both gone; the data and the interior residual determine the end
-       behaviour, and the impedance can be read off the fitted shape
-       afterwards.
-    3. The residual is normalised by the inertia term ``m omega^2 |V|``,
-       which does not contain the trainable tension.  The earlier
-       normalisation by ``T |V''|`` put the unknown in its own loss scale.
+    Differs from ``pinn_identify`` in three ways: ``V(0) = 0`` holds exactly,
+    through ``V = x_hat N(x_hat)``; no condition is imposed at the
+    anchorage, and the end impedance is read off the fitted shape; the
+    residual is normalized by the inertia term ``m omega^2 |V|``, which does
+    not contain the trainable tension. It is the gradient-descent
+    counterpart of ``shapefit.fit_shape``.
 
-    With these the network is doing, by gradient descent, what
-    ``shapefit.fit_shape`` does in closed form: finding the wavenumber the
-    measured shape actually has and reading the tension off the dispersion
-    relation.  It exists to show the two agree, so the repair cannot be
-    attributed to the machinery.
+    Returns ``(T, info)``.
     """
     import torch
 
@@ -314,8 +270,7 @@ def pinn_identify_free(x_data, v_data, omega, L, m, EI, T_init=None,
         V2 = d(V, xc, 2) / L ** 2
         V4 = d(V, xc, 4) / L ** 4
         res = EI * V4 - T * V2 - m * omega ** 2 * V
-        # detached: the scale is a normalisation, not a quantity the
-        # optimiser should be able to reduce by inflating the shape
+        # detached so the optimizer cannot shrink the loss by inflating V
         scale = (m * omega ** 2
                  * torch.mean(torch.abs(V)).detach() + 1e-30)
         loss_pde = torch.mean((res / scale) ** 2)
@@ -342,7 +297,7 @@ def pinn_identify_free(x_data, v_data, omega, L, m, EI, T_init=None,
 
         loss = optl.step(closure)
 
-    # end impedance read off the trained shape, a by-product not an unknown
+    # end impedance read off the trained shape
     xL = torch.ones(1, 1, dtype=dt, requires_grad=True)
     VL = V_of(xL)
     VLp = d(VL, xL, 1) / L

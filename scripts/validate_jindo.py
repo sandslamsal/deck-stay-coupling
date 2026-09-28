@@ -1,54 +1,14 @@
 # -*- coding: utf-8 -*-
-"""Jindo 1:150 physical model: a measured test of the veering-width law.
+"""Veering-width law against the Jindo 1:150 physical model of Caetano (2001).
 
-WHAT THIS SCRIPT IS FOR
------------------------
-Caetano's doctoral thesis (FEUP, 2001, Chapter 7) reports the only dataset
-found in which the decoupled reference of the isolated-deck idealisation was
-PHYSICALLY BUILT.  The Bristol 1:150 model of the Jindo cable-stayed bridge was
-rebuilt for the ISMES shaking table with the distributed stay mass removed and
-lumped at the anchorages (thesis Sec. 7.5.3.1), which eliminates cable dynamics
-by construction.  Its first vertical anti-symmetric mode measured 9.02 Hz as a
-single peak (Table 7.19).  The ORIGINAL distributed-mass model, measured at
-Bristol, gave NINE modes of the same deck/tower configuration spread over
-8.63-11.18 Hz (Tables 7.17 and 7.18).
+Caetano (2001), Chapter 7, measured a decoupled build (stay mass lumped at the
+anchorages) and the original distributed-mass model. A planar frame model gives
+mu_eff = M_s phi_a^2 and s = (2/(n pi)) cos(theta) sqrt(mu_eff) at each stay,
+compared with the measured branch widths and the resolvability thresholds.
+The model tensions are tuning targets, so the tension-error law is not tested.
+Reads data/external/validate_jindo_data.py; writes data/jindo.csv.
 
-The width between the coupled branches is therefore a MEASURED veering width
-about a MEASURED decoupled reference.  The study's law
-
-    mu_eff = M_s phi_a^2,   phi_a = mass-normalised structure ordinate at the
-                                    anchorage (phi^T M phi = 1)
-    s      = (2/(n pi)) cos(theta) sqrt(mu_eff)          [width at exact tuning]
-    N stays tuned at once: bright pair splits by sqrt(sum_i s_i^2), N-1 dark
-
-can be tested against it, PROVIDED the structure modal mass and the anchorage
-ordinate are computed rather than assumed.  Computing them is the job here.
-
-WHAT CANNOT BE TESTED HERE, AND WHY
------------------------------------
-There is no independent tension.  Each wire was tuned with a magnetic pickup to
-its taut-string design frequency, and the thesis's "(Irvine)" column is
-reproduced exactly by f_n = (n/2L) sqrt(T/m) from the tabulated (L, m, T).  The
-tabulated tensions are therefore the tuning targets, not measurements.  The
-TENSION-ERROR LAW IS NOT TESTED in this script.  Only the amplitude law (the
-width) and the resolvability condition are.
-
-MODEL
------
-A planar (vertical) frame model of the deck, the two towers and the piers, with
-the stays as pretensioned bars.  Two configurations:
-
-  "decoupled"  each stay's total mass M_s = m L split half to the deck
-               anchorage and half to the tower anchorage, the stay itself
-               massless.  This is the physically built ISMES configuration and
-               the numerical OECS idealisation.
-  "bare"       no stay mass anywhere.  The study's own zero-coupling reference.
-  "quasistatic" M_s cos^2(theta)/3 at the deck anchorage only, which is the
-               mass a taut string actually presents to a slowly moving support.
-
-Every calibration is listed in CALIBRATIONS below.  Nothing was tuned to fit.
-
-Outputs: printed report, plus data/jindo.csv in long format.
+Run:  python3 scripts/validate_jindo.py
 """
 
 from __future__ import annotations
@@ -75,16 +35,14 @@ def rec(block, item, quantity, value, unit="", note=""):
                      value=value, unit=unit, note=note))
 
 
-# =========================================================================
-# 1.  THE TRANSCRIBED THESIS DATA.  Every number here is from the thesis.
-# =========================================================================
+# --- 1. transcribed data, Caetano (2001) ---
 
-# ---- Table 7.6, stay schedule (model, one stay per tower per cable plane) --
-# x_anchor is the deck station in mm from the LEFT abutment for the LEFT tower.
-# L, m, T are Table 7.6 verbatim.  dia is read off Figure 7.2.
-# f1_irv and f1_fem are Table 7.6's "(Irvine)" and "FEM" first frequencies.
-# Values transcribed from Caetano (2001), PhD thesis, University of Porto, Chapter 7 (Jindo 1:150 model). They are not redistributed with
-# this code: they live in data/external/validate_jindo_data.py (see README).
+# STAYS, Table 7.6, one stay per tower per cable plane: (no, x_anchor in mm
+# from the left abutment for the left tower, L mm, m kg/m, T N, dia mm from
+# Figure 7.2, Table 7.6 "(Irvine)" and "FEM" first frequencies in Hz).
+# Values transcribed from Caetano (2001), PhD thesis, University of Porto,
+# Chapter 7, are not redistributed with this code: they live in
+# data/external/validate_jindo_data.py (see README).
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), "data", "external"))
 try:
@@ -95,11 +53,10 @@ except ImportError as exc:
                      "Caetano (2001), PhD thesis, University of Porto, Chapter 7 (Jindo 1:150 model), which are not redistributed here. "
                      "See README, 'Third-party data'.") from exc
 
-# ---- Table 7.5 + Figure 7.2, deck added-mass boxes, LEFT half (mm -> kg) ----
+# DECK_BOXES_HALF: deck added masses, left half, (x mm, kg); TOWER_MASSES:
+# tower added masses, (height above deck mm, kg); Table 7.5 and Figure 7.2.
 
-# ---- Table 7.5 + Figure 7.2, tower added masses, heights above deck (mm) ----
-
-# ---- geometry, Figure 7.2 -------------------------------------------------
+# --- geometry (m), Figure 7.2 ---
 L_TOT = 3222.0e-3          # total model length, m
 X_TOWER_L = 467.0e-3
 X_TOWER_R = L_TOT - X_TOWER_L
@@ -107,8 +64,8 @@ X_MID = L_TOT / 2.0
 Z_TOWER_TOP = 460.0e-3
 Z_PIER_BASE = -170.0e-3
 
-# ---- materials and sections, thesis p. 7.12 -------------------------------
-E_AL = 72.0e9              # aluminium alloy, girder and tower legs
+# --- materials and sections, Caetano (2001) p. 7.12 ---
+E_AL = 72.0e9              # aluminum alloy, girder and tower legs
 E_WIRE = 210.0e9           # piano wire
 RHO_AL = 2700.0
 
@@ -134,19 +91,13 @@ EI_DECK = E_AL * I_DECK_V
 N_PLANES = 2                                # upstream and downstream stays
 
 
-
-# =========================================================================
-# 2.  DERIVED STAY GEOMETRY
-# =========================================================================
+# --- 2. derived stay geometry ---
 
 def axial_scale_check():
-    """Independent check that the wire diameters and EA are right.
+    """Check the wire EA against the scaled prototype, EA_p / (sE sL^2) = EA_p / 69075.
 
-    The thesis says the stay axial stiffness was correctly scaled, so
-    EA_model should equal EA_prototype / (sE sL^2) = EA_prototype / 69075.
-    Prototype areas and E come from Table 7.2; model areas from the Figure 7.2
-    wire diameters.  Nothing in this function feeds the model; it only tests
-    the reconstruction.
+    Prototype areas and E are from Table 7.2, wire diameters from Figure 7.2.
+    Returns (stay, dia mm, EA model, EA scaled, diff %); nothing feeds the model.
     """
     E_P = 157.0e9              # Table 7.2 header, "157Mpa" as printed
     SF = 3.07 * 150.0 ** 2
@@ -180,15 +131,13 @@ def stay_geometry():
     return out
 
 
-# =========================================================================
-# 3.  PLANAR FRAME / BAR FINITE ELEMENT MODEL
-# =========================================================================
+# --- 3. planar frame and bar finite element model ---
 
 def frame_elem(l, EA, EI, m, N=0.0):
     """6-DOF planar frame element, local DOF [u1,w1,th1,u2,w2,th2].
 
-    Bending and its geometric stiffness come from cablefe.beam_element, so the
-    arithmetic is the study's own.  N is positive in tension.
+    Bending and geometric stiffness come from cablefe.beam_element.
+    N is positive in tension.
     """
     kb, mb = beam_element(l, EI, m, N)
     k = np.zeros((6, 6))
@@ -350,9 +299,7 @@ class Frame2D:
         return np.array(Nf), np.array(Nb)
 
 
-# =========================================================================
-# 4.  BUILD THE JINDO MODEL IN THE VERTICAL PLANE
-# =========================================================================
+# --- 4. Jindo model in the vertical plane ---
 
 def deck_stations(max_seg=0.040):
     """Symmetric list of deck x stations, in m, subdivided to <= max_seg."""
@@ -374,7 +321,7 @@ def build(cable_mass="decoupled", geom_stiff=True, rigid_pier=False,
     """Assemble the planar model.
 
     cable_mass : "decoupled"   M_s/2 at each anchorage  (the ISMES build)
-                 "bare"        no stay mass at all      (study's d=0 reference)
+                 "bare"        no stay mass at all      (zero-coupling reference)
                  "quasistatic" M_s cos^2(theta)/3 at the deck end only
     """
     g = stay_geometry()
@@ -425,7 +372,7 @@ def build(cable_mass="decoupled", geom_stiff=True, rigid_pier=False,
     fm.fix(dn[round(0.0, 9)], (1,))
     fm.fix(dn[round(L_TOT, 9)], (1,))
     # deck-tower junctions: equal vertical at both, equal longitudinal at the
-    # right (North) tower only.  Thesis p. 7.23 (iv) and Figure 7.6 symbols.
+    # right (North) tower only; Caetano (2001) p. 7.23 (iv) and Figure 7.6.
     znL, mgL = tower_nodes[X_TOWER_L]
     znR, mgR = tower_nodes[X_TOWER_R]
     fm.tie(dn[round(X_TOWER_L, 9)], znL[0.0], 1)
@@ -488,9 +435,7 @@ def solve_model(fm, nmodes=40):
     return dict(fm=fm, f=fr[:k], Phi=Phi, u=u, Nf=Nf, Nb=Nb, L=L, K=K, M=M)
 
 
-# =========================================================================
-# 5.  MODE CLASSIFICATION
-# =========================================================================
+# --- 5. mode classification ---
 
 def deck_shape(res, mode):
     fm = res['fm']
@@ -530,7 +475,7 @@ def classify(res, mode):
 
 
 def label_vertical(res, nshow=20):
-    """Identify the vertical deck modes and give them thesis-style labels."""
+    """Identify the vertical deck modes and label them as Caetano (2001) does."""
     out = []
     nsym = nasm = 0
     for m in range(len(res['f'])):
@@ -556,34 +501,28 @@ def label_vertical(res, nshow=20):
     return out
 
 
-# =========================================================================
-# 6.  MEASURED DATA, THESIS TABLES 7.17 / 7.18 / 7.19
-# =========================================================================
+# --- 6. measured data, Caetano (2001) Tables 7.17 to 7.19 ---
 
-# Table 7.19: the MODIFIED (decoupled) model on the ISMES table.
-#   type : (identified f, zeta_lo %, zeta_hi %, OECS calculated f)
-
-# Table 7.9, 3-D OECS calculated, vertical family only
-
-# Table 7.17, ORIGINAL distributed-mass model.  (f, zeta_lo, zeta_hi) per
-# excitation technique; None where that technique did not identify the mode.
-# Rows are the thesis's own row order, which pairs the two columns.
+# DECOUPLED_MEASURED, Table 7.19: decoupled model on the ISMES table,
+#   type: (identified f, zeta_lo %, zeta_hi %, OECS calculated f)
+# OECS_VERTICAL, Table 7.9: 3-D OECS calculated, vertical family only
+# T717_*, Table 7.17: original distributed-mass model, (f, zeta_lo, zeta_hi)
+# for (shaker, shaking table); None where that technique did not identify the
+# mode. Rows follow the source's row order, which pairs the two columns.
 
 # Table 7.18, shaking-table identified groups
 MEAS_VERT_SYM_SHAKER = [6.25, 6.69, 7.12]
 MEAS_VERT_SYM_TABLE = [6.27, 6.73]
 
-# Table 7.10, 3-D MECS: cable/beam maximum-displacement ratio in Z for the
-# modes the thesis assigns to the 1st vertical ASM family.  Small = structural.
+# MECS_VERT_ASM, Table 7.10: 3-D MECS cable/beam maximum Z-displacement
+# ratio for the first vertical ASM family (small = structural).
 
-# The study's resolvability thresholds
+# resolvability thresholds on s/zeta
 K_DIP = 0.9717      # a dip survives while s > K_DIP * zeta
 K_3DB = 2.280       # the dip is at least 3 dB while s > K_3DB * zeta
 
 
-# =========================================================================
-# 7.  THE LAW
-# =========================================================================
+# --- 7. veering-width law ---
 
 def anchor_data(res, mode, geom):
     """Per stay copy: ordinates, mu_eff and s at the anchorage of one mode."""
@@ -603,13 +542,12 @@ def anchor_data(res, mode, geom):
         phi_a = pd[1]                                 # vertical deck ordinate
         mu = mu_effective(s['Ms'], phi_a)
         s_study = veering_split(mu, s['theta'], n=1)
-        drive = float(pd @ t + pt @ t)                # n = 1 generalised drive
+        drive = float(pd @ t + pt @ t)                # n = 1 generalized drive
         s_gen = 2.0 / np.pi * np.sqrt(s['Ms']) * abs(drive)
-        # Revision 1: the second route.  A sagged wire is also driven by the
-        # along-chord pull at the deck anchorage through its dynamic tension,
-        # in the ratio r_1 = (2/pi^2) sin(theta) (EA/T)(m g L/T) to the tie
-        # and with the opposite sign, so the deck-side coupling carries the
-        # factor (1 - r_1); the tower-top drive is left as it is.
+        # second route: the along-chord pull drives a sagged wire through its
+        # dynamic tension, in the ratio r_1 = (2/pi^2) sin(theta) (EA/T)(m g L/T)
+        # to the tie with opposite sign, so the deck-side coupling carries
+        # (1 - r_1); the tower-top drive is unchanged
         r1 = 2.0 / np.pi ** 2 * np.sin(s['theta']) * (s['EA'] / s['T']) \
             * (s['m'] * G * s['L'] / s['T'])
         s_two = s_study * abs(1.0 - r1)
@@ -629,10 +567,8 @@ def anchor_data(res, mode, geom):
 def bordered_branches(f0, f_stays, s_list):
     """N+1 branches of one structure mode coupled to N stays.
 
-    A = diag(f0^2, f1^2, ... fN^2) with A[0,i] = s_i f0^2.  At exact tuning
-    with one stay the roots are f0 sqrt(1 +- s), i.e. a normalised split s,
-    which is exactly cablefe.veering_split.  With all stays tuned the split is
-    sqrt(sum s_i^2), which is the bordered-pencil rule the study states.
+    A = diag(f0^2, f1^2, ... fN^2) with A[0,i] = s_i f0^2. With all stays at
+    exact tuning the normalized split is sqrt(sum s_i^2).
     Returns (frequencies ascending, bright fraction of each branch).
     """
     n = len(f_stays)
@@ -648,9 +584,7 @@ def bordered_branches(f0, f_stays, s_list):
     return f[o], bright[o]
 
 
-# =========================================================================
-# 8.  REPORT
-# =========================================================================
+# --- 8. report ---
 
 def hr(t):
     print()
@@ -668,11 +602,11 @@ def find_mode(res, label):
 
 def step1_verify(variants):
     hr("STEP 1.  THE DECOUPLED MODEL, BUILT AND VERIFIED")
-    print("Configuration built: stay mass M_s = m L removed from the wire and")
+    print("Model configuration: stay mass M_s = m L removed from the wire and")
     print("split M_s/2 to the deck anchorage, M_s/2 to the tower anchorage.")
-    print("That is the ISMES build (thesis Sec. 7.5.3.1) and the OECS idealisation.")
+    print("This is the ISMES build (Caetano (2001) Sec. 7.5.3.1) and the OECS idealization.")
     print()
-    print("Calibrations made (none of them tuned to a measured frequency):")
+    print("Calibrations (none tuned to a measured frequency):")
     for c in CALIBRATIONS:
         print("  - " + c)
     print()
@@ -742,7 +676,7 @@ def step1_verify(variants):
 
 
 def step2_ordinates(res_by_cfg, mode_label='1st vert. ASM'):
-    hr("STEP 2.  MASS-NORMALISED ANCHORAGE ORDINATES AND mu_eff")
+    hr("STEP 2.  MASS-NORMALIZED ANCHORAGE ORDINATES AND mu_eff")
     out = {}
     for cfg, res in res_by_cfg.items():
         m, f = find_mode(res, mode_label)
@@ -759,7 +693,7 @@ def step2_ordinates(res_by_cfg, mode_label='1st vert. ASM'):
     print("Tuned mode: %s of the decoupled model, FE %.3f Hz "
           "(measured 9.02 Hz, OECS 9.12 Hz)." % (mode_label, f0))
     print()
-    print("Per stay, LEFT tower (the right tower is the mirror, |phi_a| equal):")
+    print("Per stay, left tower (the right tower is the mirror image, |phi_a| equal):")
     print("%4s %9s %9s %11s %11s %10s %9s %9s %9s %9s" %
           ("stay", "x_a (mm)", "M_s (kg)", "phi_a", "1/phi_a^2",
            "mu_eff", "s_study", "v_deck", "v_tower", "s_gen"))
@@ -805,13 +739,13 @@ def step2_ordinates(res_by_cfg, mode_label='1st vert. ASM'):
     tot = sum(res_by_cfg['decoupled']['fm'].lumped.values()) + sum(
         fr['m'] * res_by_cfg['decoupled']['fm']._dir(fr['i'], fr['j'])[0]
         for fr in res_by_cfg['decoupled']['fm'].frames)
-    print("Physical mass of the modelled structure: %.2f kg "
+    print("Physical mass of the modeled structure: %.2f kg "
           "(thesis states 'total mass of superstructure ~= 50 kg')." % tot)
     a8 = seen0[(8, round(X_TOWER_L, 6))]
     a9 = seen0[(9, round(X_TOWER_L, 6))]
     print("Implied structure modal mass at the stay-8 anchorage 1/phi_a^2 = "
           "%.2f kg, at stay 9 %.2f kg." % (a8['Mmodal'], a9['Mmodal']))
-    print("Both are the right order against %.1f kg physical, as they must be: "
+    print("Both are of the expected order against %.1f kg physical: "
           "1/phi_a^2 is the mass an oscillator at that point would need to "
           "carry the whole modal kinetic energy, so it exceeds the physical "
           "mass wherever the mode ordinate is below its maximum." % tot)
@@ -831,7 +765,7 @@ def step3_width(out, f0_meas=9.02):
     hr("STEP 3.  PREDICTED WIDTH")
     f_fe, seen = out['decoupled']
     stays = [seen[(n, round(X_TOWER_L, 6))] for n in range(1, 13)]
-    print("Every stay exists in FOUR copies: two towers x two cable planes.")
+    print("Each stay has four copies: two towers x two cable planes.")
     print("All four have the same |phi_a|, so each stay number contributes")
     print("sqrt(4) s_i = 2 s_i to the bright split and leaves three dark modes.")
     print()
@@ -855,7 +789,7 @@ def step3_width(out, f0_meas=9.02):
                ("stays 7-11", [7, 8, 9, 10, 11]),
                ("all 12 stays", list(range(1, 13)))]
     print("Exact-tuning width sqrt(sum s_i^2) over four copies of each stay in")
-    print("the subset (the study's bordered-pencil rule at exact tuning):")
+    print("the subset (bordered-pencil rule at exact tuning):")
     print("%-18s %10s %12s %12s %12s %12s" % ("subset", "N copies", "s_study %", "s_gen %",
                                               "two-route %", "two+tower %"))
     for name, ss in subsets:
@@ -875,7 +809,7 @@ def step3_width(out, f0_meas=9.02):
         rec("width_exact_tuning", name, "s_combined_generalised_pct",
             round(100 * wg, 4), "%")
     print()
-    print("How much of this survives the modelling uncertainty?  The same")
+    print("Sensitivity to the modeling choices: the same")
     print("sqrt(sum s_i^2) over stays 8 and 9, computed in every FE variant:")
     for cfg in ('decoupled', 'bare', 'quasistatic', 'rigid_pier', 'no_Kg'):
         if cfg not in ALL_OUT:
@@ -891,7 +825,7 @@ def step3_width(out, f0_meas=9.02):
         rec("width_variant", cfg, "s_all_stays_pct", round(100 * vall, 3), "%")
 
     print()
-    print("Bordered pencil with the ACTUAL stay frequencies, so detuning is")
+    print("Bordered pencil with the actual stay frequencies, so detuning is")
     print("carried exactly.  Twelve stay coordinates with coupling 2 s_i (the")
     print("in-phase combination of the four copies); the remaining 36 copies")
     print("are exactly dark and sit on their own uncoupled frequencies.")
@@ -923,14 +857,14 @@ def step4_measured(stays, f0_meas=9.02):
     hr("STEP 4.  COMPARISON WITH THE MEASURED BRANCHES")
     tab = MEAS_VERT_ASM_TABLE
     sh = MEAS_VERT_ASM_SHAKER
-    print("Measured 1st vertical ASM branches of the ORIGINAL model:")
+    print("Measured 1st vertical ASM branches of the original model:")
     print("  shaking table (9): %s" % ", ".join("%.2f" % v for v in tab))
     print("  shaker        (8): %s" % ", ".join("%.2f" % v for v in sh))
     print("  decoupled build (1 peak, no beating): 9.02 Hz")
     print()
-    print("WHICH TWO BRANCHES ARE THE BRIGHT PAIR IS A JUDGEMENT.  The thesis")
+    print("The choice of the bright pair of branches is a judgment.  The thesis")
     print("does not report a structural participation for the measured modes,")
-    print("so the pair cannot be read off the data.  Five defensible choices:")
+    print("so the pair cannot be read from the data.  Five candidate choices:")
     print()
     choices = []
     lo = [v for v in tab if v < f0_meas]
@@ -951,7 +885,7 @@ def step4_measured(stays, f0_meas=9.02):
         rec("measured_width", name, "f_hi", b, "Hz")
         rec("measured_width", name, "width_pct", round(w, 3), "%")
     print()
-    print("Predicted values to compare against (from step 3):")
+    print("Predicted values for comparison (from step 3):")
     sel89 = [a for a in stays if a['no'] in (8, 9)]
     w89 = 200 * np.sqrt(sum(a['s_study'] ** 2 for a in sel89))
     sel8 = [a for a in stays if a['no'] == 8]
@@ -1002,19 +936,19 @@ def maxent_weights(lam, lam0):
 
 
 def step4b_moments(stays, f0_meas=9.02):
-    hr("STEP 4b.  A CHOICE-FREE VERSION OF THE SAME TEST: THE SUM RULE")
-    print("The bordered pencil obeys two exact sum rules in lambda = f^2.  If")
+    hr("STEP 4b.  SUM-RULE TEST WITHOUT A PAIR CHOICE")
+    print("The bordered pencil satisfies two exact sum rules in lambda = f^2.  If")
     print("b_k is the structural (bright) content of branch k, then")
     print("      sum_k b_k = 1,   sum_k b_k lambda_k = lambda_0,")
     print("      sum_k b_k (lambda_k - lambda_0)^2 = lambda_0^2 sum_i s_i^2.")
     print("So sqrt(sum_i s_i^2) is exactly the bright-weighted standard")
     print("deviation of the branch frequencies in lambda, divided by lambda_0.")
-    print("It is a MOMENT of the whole measured group, not a pair of branches,")
-    print("and lambda_0 is the MEASURED decoupled reference 9.02 Hz.")
+    print("It is a moment of the whole measured group, not of a pair of branches,")
+    print("and lambda_0 is from the measured decoupled reference, 9.02 Hz.")
     print()
-    print("The thesis does not report b_k for the measured modes.  But b_k >= 0")
-    print("and the mean rule pin the achievable spread between two extremes, so")
-    print("the 'which pair is bright' judgement becomes a BOUND, not a choice.")
+    print("The thesis does not report b_k for the measured modes.  With b_k >= 0")
+    print("and the mean rule, the spread is bounded between two extremes, so")
+    print("the bright-pair choice is replaced by a bound.")
     print()
     lam0 = f0_meas ** 2
     for name, meas in (("shaking table (9 branches)", MEAS_VERT_ASM_TABLE),
@@ -1043,14 +977,14 @@ def step4b_moments(stays, f0_meas=9.02):
             rec("sum_rule", name, tag, round(100 * v, 3), "%")
         print()
 
-    print("A FOURTH WEIGHTING, AND THIS ONE IS MEASURED.  A hybrid branch")
+    print("Fourth weighting, from measured damping.  A hybrid branch")
     print("carries the structure's damping in proportion to its bright content")
     print("and the wire's damping in proportion to the rest, so to first order")
     print("     zeta_k = b_k zeta_struct + (1 - b_k) zeta_cable.")
-    print("zeta_struct is MEASURED on the decoupled build: 0.46-0.49 % for the")
+    print("zeta_struct is measured on the decoupled build: 0.46-0.49 % for the")
     print("1st vertical ASM (Table 7.19).  zeta_cable is taken as the smallest")
-    print("damping in the group, which is the most nearly pure cable branch.")
-    print("Inverting gives b_k from the thesis's own damping column.")
+    print("damping in the group, the branch closest to a pure cable mode.")
+    print("Inverting gives b_k from the damping column of the thesis.")
     print()
     zst = 0.475
     for name, rows, pick in (("shaking table, mid zeta", T717_VERT_ASM, 'mid'),
@@ -1080,10 +1014,10 @@ def step4b_moments(stays, f0_meas=9.02):
                 rec("damping_weights", "%.2f Hz" % v, "b_k",
                     round(float(bb), 4), "-", "zeta_mid %.3f pct" % zz)
         print("   weighted mean frequency %.3f Hz against the measured" % np.sqrt(mean))
-        print("   decoupled reference %.2f Hz (the sum rule says they should"
+        print("   decoupled reference %.2f Hz (by the sum rule they"
               % f0_meas)
-        print("   agree; the gap is a direct check on the branch list being")
-        print("   complete).  Difference %+.2f %%."
+        print("   agree for a complete branch list, so the gap checks")
+        print("   completeness).  Difference %+.2f %%."
               % (100 * (np.sqrt(mean) - f0_meas) / f0_meas))
         print("   sqrt(sum s^2) about the weighted mean : %.2f %%"
               % (100 * np.sqrt(var) / mean))
@@ -1108,7 +1042,7 @@ def step4b_moments(stays, f0_meas=9.02):
             round(100 * float(np.sqrt(var2) / mean2), 3), "%")
     print()
 
-    print("PREDICTED sqrt(sum_i s_i^2), four copies of every stay:")
+    print("Predicted sqrt(sum_i s_i^2), four copies of every stay:")
     for nm, ss in (("stays 8 and 9 (the near-tuned ones)", (8, 9)),
                    ("stays 7-11", (7, 8, 9, 10, 11)),
                    ("all twelve stays", tuple(range(1, 13)))):
@@ -1117,26 +1051,26 @@ def step4b_moments(stays, f0_meas=9.02):
         vg = 2.0 * np.sqrt(sum(a['s_gen'] ** 2 for a in sel))
         v2 = 2.0 * np.sqrt(sum(a['s_two'] ** 2 for a in sel))
         vg2 = 2.0 * np.sqrt(sum(a['s_gen_two'] ** 2 for a in sel))
-        print("   %-36s %7.2f %%   (generalised drive %.2f %%;"
+        print("   %-36s %7.2f %%   (generalized drive %.2f %%;"
               " two-route %.2f %%, with tower %.2f %%)"
               % (nm, 100 * v, 100 * vg, 100 * v2, 100 * vg2))
         rec("sum_rule_prediction", nm, "sqrt_sum_s2_pct", round(100 * v, 3), "%")
         rec("sum_rule_prediction", nm, "sqrt_sum_s2_two_route_pct", round(100 * v2, 3), "%")
         rec("sum_rule_prediction", nm, "sqrt_sum_s2_two_route_tower_pct", round(100 * vg2, 3), "%")
     print()
-    print("The sum rule counts EVERY stay, however detuned, so the honest")
-    print("comparison for the measured group is the all-stay figure, reduced by")
-    print("whatever the truncation of the measured branch list to 8.6-11.2 Hz")
-    print("removes.  Stays 2-5 sit at 15-19 Hz and their branches are outside")
-    print("that window, so the measured spread must fall short of the all-stay")
+    print("The sum rule counts every stay, however detuned, so the")
+    print("comparison for the measured group is the all-stay value, reduced by")
+    print("the part lost when the measured branch list is truncated to 8.6-11.2 Hz.")
+    print("Stays 2-5 are at 15-19 Hz and their branches are outside")
+    print("that window, so the measured spread is below the all-stay")
     print("prediction by construction.")
 
 
 def step5b_cross(rows, name):
-    """Was a mode seen by BOTH techniques, and does s/zeta predict it?"""
+    """Compare the 3 dB criterion with whether a mode was seen by both techniques."""
     print()
     print("-- %s, cross-technique test" % name)
-    print("Physical mode list is the thesis's own row pairing.  A row's")
+    print("The physical mode list follows the row pairing of the thesis.  A row's")
     print("frequency is the shaking-table value where it exists, else the")
     print("shaker value; its damping is the widest range across both columns.")
     seq = []
@@ -1182,23 +1116,23 @@ def step5b_cross(rows, name):
 
 def step5_resolvability():
     hr("STEP 5.  RESOLVABILITY  s > 0.9717 zeta  AND  s > 2.280 zeta")
-    print("The thresholds are applied to the MEASURED normalised spacing")
-    print("between adjacent identified branches and the MEASURED damping of")
+    print("The thresholds are applied to the measured normalized spacing")
+    print("between adjacent identified branches and the measured damping of")
     print("those branches.  No model enters this test.")
     print()
     print("Caetano, p. 7.71: 'In certain cases it was not possible to identify")
     print("accurately some of the multiple modes simultaneously with both")
-    print("excitation techniques, due to high modal interference AND")
+    print("excitation techniques, due to high modal interference and")
     print("insufficient amplitude and/or frequency resolution of the FRF")
-    print("estimates.'  The second clause is a confound and is carried below.")
+    print("estimates.'  The second clause is a confounding factor.")
     print()
-    print("A SECOND AND LARGER CONFOUND.  The study's condition is about a DIP")
-    print("between two peaks in a spectrum, i.e. about peak picking.  Caetano")
-    print("identified modes with a rational-fraction-polynomial curve fit over")
-    print("many FRFs, which separates modes well below the dip threshold.  The")
-    print("Jindo data can therefore FALSIFY the condition in the direction")
-    print("'predicted unresolvable but identified anyway'; it cannot confirm")
-    print("it.  Read the tables below with that asymmetry in mind.")
+    print("A second, larger confounding factor.  The resolvability condition")
+    print("concerns a dip between two peaks in a spectrum, that is, peak")
+    print("picking.  Caetano identified modes with a rational-fraction-polynomial")
+    print("curve fit over many FRFs, which separates modes well below the dip")
+    print("threshold.  The Jindo data can therefore contradict the condition in")
+    print("the direction 'predicted unresolvable but identified', but cannot")
+    print("confirm it.  This asymmetry applies to the tables below.")
     print()
 
     def run(name, rows, col):
@@ -1273,7 +1207,7 @@ def step5_resolvability():
         rec("resolvability_contingency", "%s %s" % (name, col),
             "no3db_and_one", d, "modes")
 
-    print("THE GROUP THE BRIEF SINGLES OUT: 1st transversal ASM on the shaking")
+    print("Key group: 1st transversal ASM on the shaking")
     print("table, where s/zeta straddles both thresholds.")
     for (fa, fb) in ((10.35, 10.54), (10.54, 10.73)):
         za = dict((r[1][0], (r[1][1], r[1][2])) for r in T717_TRANSV_ASM
@@ -1321,13 +1255,13 @@ def step6_stay12(res_by_cfg):
     a12s, a12a = key(ad_sym, 12), key(ad_asm, 12)
     a8s, a8a = key(ad_sym, 8), key(ad_asm, 8)
 
-    print("Stay 12 anchors 71 mm from midspan: a NODE of the anti-symmetric")
-    print("mode, an ANTINODE of the symmetric one.  It is the heaviest")
+    print("Stay 12 anchors 71 mm from midspan, at a node of the anti-symmetric")
+    print("mode and an antinode of the symmetric one.  It is the heaviest")
     print("forestay, M_s = %.5f kg, twice stay 8.  Its plain mass ratio"
           % a12a['Ms'])
-    print("M_s / M_structure = %.5f is IDENTICAL for the two families, so a"
+    print("M_s / M_structure = %.5f is the same for the two families, so a"
           % (a12a['Ms'] / tot))
-    print("plain mass ratio predicts IDENTICAL coupling to both.")
+    print("plain mass ratio predicts the same coupling to both.")
     print()
     print("%-6s %-16s %10s %10s %12s %10s %12s" %
           ("stay", "family", "f0 FE Hz", "phi_a", "mu_eff", "s (%)",
@@ -1351,41 +1285,41 @@ def step6_stay12(res_by_cfg):
     r12 = a12s['mu_eff'] / a12a['mu_eff']
     r8 = a8s['mu_eff'] / a8a['mu_eff']
     print()
-    print("PREDICTION.  For stay 12 the mu_eff ratio SYM/ASM is %.1f, so the"
+    print("Prediction: for stay 12 the mu_eff ratio SYM/ASM is %.1f, so the"
           % r12)
-    print("width it drives is sqrt of that, %.1f times larger against the"
+    print("width it drives is its square root, %.1f times larger for the"
           % np.sqrt(r12))
-    print("symmetric family than against the anti-symmetric one, at the same")
-    print("M_s and the same plain mass ratio.  For stay 8 the SAME ratio is")
-    print("%.2f, i.e. the OPPOSITE way round.  So the discriminator is a" % r8)
-    print("property of WHERE a stay sits, not of the two families in general,")
-    print("and no single plain mass ratio can produce both signs.")
+    print("symmetric family than for the anti-symmetric one, at the same")
+    print("M_s and the same plain mass ratio.  For stay 8 the same ratio is")
+    print("%.2f, the opposite way round.  The difference is therefore a" % r8)
+    print("property of the stay location, not of the two families in general,")
+    print("and no single plain mass ratio can give both orderings.")
     rec("stay12_discriminator", "stay 12", "mu_eff_ratio_sym_over_asm",
         round(r12, 3), "-")
     rec("stay12_discriminator", "stay 8", "mu_eff_ratio_sym_over_asm",
         round(r8, 3), "-")
     print()
-    print("Stay 12's own first frequency is %.2f Hz (Irvine) / %.2f Hz (FEM),"
+    print("The first frequency of stay 12 is %.2f Hz (Irvine) / %.2f Hz (FEM),"
           % (a12a['f1_irv'], a12a['f1_fem']))
-    print("which sits INSIDE the measured 1st vertical SYM group")
+    print("inside the measured 1st vertical SYM group")
     print("6.25 / 6.69 / 7.12 Hz and %.0f %% below the 1st vertical ASM at"
           % (100 * (9.02 - a12a['f1_irv']) / 9.02))
     print("9.02 Hz.  Stay 12 is therefore both near-tuned to the symmetric")
     print("family and placed at its antinode, and both detuned from and")
-    print("nodal to the anti-symmetric one.  The two effects point the same")
-    print("way, so this is a compound test, not a clean single-variable one.")
+    print("nodal to the anti-symmetric one.  The two effects act in the same")
+    print("direction, so the test does not isolate a single variable.")
     print()
-    print("TEST AGAINST MEASUREMENT.")
-    print("  (a) Table 7.16, 3-D MECS, mode 27 at 9.04 Hz, the 1st vertical")
+    print("Comparison with measurement:")
+    print("  (a) Thesis Table 7.16, 3-D MECS, mode 27 at 9.04 Hz, the 1st vertical")
     print("      ASM mode with the most deck motion (cable/beam Z-ratio 1.6,")
-    print("      the smallest in Table 7.10): stays 8U/8D carry the DOUBLE")
-    print("      underline, highest amplitude, while 12U/12D carry NONE, the")
-    print("      lowest band.  Stay 12 barely moves in the anti-symmetric")
-    print("      mode despite being the heaviest forestay.")
-    print("  (b) Table 7.14, MEASURED cable movement under tuned sinusoidal")
+    print("      the smallest in Table 7.10): stays 8U/8D carry the double")
+    print("      underline (highest amplitude), while 12U/12D carry none (the")
+    print("      lowest band).  Stay 12 moves little in the anti-symmetric")
+    print("      mode although it is the heaviest forestay.")
+    print("  (b) Thesis Table 7.14, measured cable movement under tuned sinusoidal")
     print("      excitation at 9.20 Hz (1st vertical ASM): stays 8 and 9 are")
-    print("      listed at BOTH towers with double underlines; stay 12 does")
-    print("      not appear at all.  It first appears at 9.50 Hz and then at")
+    print("      listed at both towers with double underlines; stay 12 does")
+    print("      not appear.  It first appears at 9.50 Hz, at")
     print("      one tower only.")
     print("  (c) The measured symmetric group 6.25 / 6.69 / 7.12 Hz spans")
     print("      %.1f %% about 6.69 Hz from three modes."
@@ -1406,18 +1340,18 @@ def step6_stay12(res_by_cfg):
     rec("stay12_discriminator", "measured SYM group", "width_pct",
         round(100 * (7.12 - 6.25) / 6.69, 3), "%")
     print()
-    print("  Stay 1 is the same test in its strongest form.  It is by far the")
-    print("  heaviest stay (M_s = %.4f kg, 6.7 times stay 8) but it anchors AT"
+    print("  Stay 1 gives the same test in its strongest form.  It is by far the")
+    print("  heaviest stay (M_s = %.4f kg, 6.7 times stay 8) but it anchors at"
           % key(ad_asm, 1)['Ms'])
     print("  the abutment support, where the deck cannot move.  Computed:")
     print("  phi_a = %.2e, mu_eff = %.2e, s = %.4f %%.  A plain mass ratio"
           % (key(ad_asm, 1)['phi_a'], key(ad_asm, 1)['mu_eff'],
              100 * key(ad_asm, 1)['s_study']))
     print("  would make stay 1 the most strongly coupled stay in the bridge.")
-    print("  The refinement that includes tower-top motion gives it a non-zero")
-    print("  drive, s_gen = %.3f %%, because the backstay top rides on the"
+    print("  With tower-top motion included, the generalized drive gives it a")
+    print("  non-zero width, s_gen = %.3f %%, as the backstay top moves with the"
           % (100 * key(ad_asm, 1)['s_gen']))
-    print("  tower; that is the leading correction to the rigid-pylon law.")
+    print("  tower; this is the leading correction to the rigid-pylon law.")
     rec("stay1_discriminator", "stay 1 ASM", "phi_a",
         float("%.4g" % key(ad_asm, 1)['phi_a']), "kg^-1/2")
     rec("stay1_discriminator", "stay 1 ASM", "mu_eff",
@@ -1428,17 +1362,15 @@ def step6_stay12(res_by_cfg):
         float("%.4g" % (100 * key(ad_asm, 1)['s_gen'])), "%")
 
 
-# =========================================================================
-# 9.  MAIN
-# =========================================================================
+# --- 9. main ---
 
 def main():
     hr("JINDO 1:150 PHYSICAL MODEL - MEASURED TEST OF THE AMPLITUDE LAW")
     print("Source: Caetano (2001), FEUP doctoral thesis, Chapter 7.")
     print("Tested here: the amplitude law and the resolvability condition.")
-    print("NOT tested here: the tension-error law.  The stay tensions were set")
+    print("Not tested here: the tension-error law.  The stay tensions were set")
     print("by tuning each wire to its taut-string design frequency with a")
-    print("magnetic pickup, and the thesis's '(Irvine)' column is reproduced")
+    print("magnetic pickup, and the '(Irvine)' column of the thesis is reproduced")
     print("exactly by f = (1/2L) sqrt(T/m) from the tabulated (L, m, T).  The")
     print("tabulated tensions are the tuning targets, not measurements, so")
     print("there is no independent tension to test an inversion against.")
@@ -1465,8 +1397,8 @@ def main():
         rec("stay_geometry", "stay %d" % s['no'], "f1_fem", s['f1_fem'], "Hz")
 
     print()
-    print("Independent check of the wire diameters read off Figure 7.2: the")
-    print("thesis says the stay AXIAL stiffness was correctly scaled, so")
+    print("Check of the wire diameters read from thesis Figure 7.2: the")
+    print("thesis states that the stay axial stiffness was correctly scaled, so")
     print("EA_model should equal EA_prototype / (sE sL^2) = EA_p / 69075.")
     print("%5s %9s %12s %12s %9s" % ("stay", "dia (mm)", "EA model (N)",
                                      "EA scaled (N)", "diff %"))

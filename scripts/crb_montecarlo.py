@@ -1,199 +1,12 @@
 # -*- coding: utf-8 -*-
-"""How much information about stay tension survives a crossing: measured.
+"""Cramer-Rao bound and Monte Carlo precision of stay tension at a crossing.
 
-Everything the study has established about a deck-stay crossing concerns the
-DISPLACEMENT of the estimate.  The veering width at exact tuning, the branch
-separation sqrt(d^2+s^2), the tension bias eps = sqrt(d^2+s^2) - |d|, the
-merged-peak law: each says that a tension read from an isolated-cable
-formula is wrong, and by how much.  None says whether the tension is
-RECOVERABLE, that is, whether an ambient record of the coupled pair carries
-enough information to pin T down once the host's properties are admitted as
-unknowns.  This script answers that by measurement.  It is deliberately
-written to share no derivation with the analytic arm of the same
-investigation: if the two agree they agree from opposite directions, and if
-they disagree the disagreement is informative.
-
-WHAT IS MEASURED, AND WHAT WAS FOUND
-------------------------------------
-For a record of the hybrid pair at stated d, s, zeta, record length and
-noise floor, this script measures the sample variance of the maximum
-likelihood tension over many realisations, the Fisher information matrix,
-the resulting Cramer-Rao bound, the estimator's bias, and the ways the fit
-fails.  The headline results are stated here because a reader should not
-have to run the code to learn that the effect the investigation set out to
-find is real but is not where it was expected to be.
-
-  1  With the coupled model correctly specified and the sensor's direct
-     sight of the host tied to the coupling, the information about T does
-     NOT collapse at a crossing.  The bound at exact tuning is the best in
-     the detuning range, not the worst: 0.14, 0.20, 0.27 and 0.51 per cent
-     of T at zeta = 0.2, 0.5, 1 and 2 per cent on a ten minute single-sensor
-     record, against 0.58, 1.08, 2.07 and 5.31 per cent at d = -0.058.  The
-     penalty for admitting the host's frequency and coupling as unknowns is
-     a factor 1.1 to 1.6 in variance AT the crossing and 40 to 140 away from
-     it.  A stay sensor sees the host best exactly where the study says the
-     host does most damage, because the host-dominated peak is strongest
-     when the mixing is strongest.  The controlling variable is the height
-     of that weak peak above the noise floor, and the bound turns upward
-     once it falls below about 5 dB.
-  2  The collapse IS there, and it is a collapse of exactly the kind the
-     investigation described, but it is gated by one further unknown.  The
-     spectrum at a stay sensor has two poles and one zero, three
-     frequency-like quantities, while the coupled model has four: the stay
-     frequency, the host frequency, the coupling, and the gain rb with which
-     the sensor sees the host directly through the tie at the anchorage.
-     With rb free the Fisher matrix is SINGULAR TO MACHINE PRECISION at
-     exact tuning, so no unbiased estimator of T has finite variance there,
-     and its smallest eigenvalue grows as d^2 so the bound falls as 1/|d|.
-     The null direction is measured, not assumed: it lowers w_s^2 and raises
-     w_h^2 by equal amounts while raising rb, so that the sum of the squared
-     frequencies and the position of the antiresonance are both preserved.
-  3  A singular Fisher matrix is not a flat likelihood.  Along that null
-     direction the log spectrum moves at second order and the Kullback-
-     Leibler divergence at fourth (measured exponents 1.91 and 3.96), so the
-     expected profile likelihood gives a finite half-width of about 2.2 per
-     cent, roughly independent of d, where the Cramer-Rao bound is infinite.
-     Eleven times worse than the tied model, and a number the bound cannot
-     express.  Everything in this script is therefore reported twice, as a
-     Cramer-Rao bound and as a profile half-width, and the two agree to
-     three figures wherever the likelihood is quadratic.
-  4  Identifiability is restored by the kinematic tie rb = c_b s, since the
-     coupling and the direct gain are both proportional to the host mode
-     amplitude at the anchorage.  c_b is external knowledge, not information
-     in the record, and it need only be roughly right: a 20 per cent error
-     moves T by 0.05 to 0.08 per cent.  A second accelerometer at the deck
-     anchorage removes the degeneracy outright, taking the bound with rb
-     free from infinite to 0.33 per cent at d = 0.008.
-  5  The estimator is efficient where the pair is resolvable and is not
-     where it is not.  Over 27 configurations the ratio of sample variance
-     to bound is 0.77 to 1.14 with the host known, and 0.71 to 1.38 with it
-     unknown for |d| <= 0.015 at zeta <= 0.5 per cent, against a sampling
-     error of 0.10 at 200 realisations.  At zeta = 2 per cent, where
-     s/2 zeta = 0.58 and the pair is merged, the ratio reaches 22, the fits
-     are bimodal in 7 to 48 per cent of realisations and the bias reaches
-     1.5 per cent, so the plain bound is then not the right comparison and
-     the bias is reported separately.
-  6  The screening criterion |d| >= (s^2 - tol^2)/(2 tol) cannot be restated
-     as an identifiability criterion.  It is exactly eps <= tol, a statement
-     about the bias of the incumbent isolated-cable inversion, and the
-     precision a coupled fit can reach is flat across its threshold: 0.138
-     against 0.142 per cent at zeta = 0.2 per cent and tol = 2 per cent.
-     What the numbers do support is a detectability statement, and it runs
-     the other way from the criterion: at the crossing the bias the
-     criterion polices is eps = s = 2.34 per cent of T, which is 17, 12,
-     8.5, 4.6 and 1.1 times the precision a coupled fit achieves as zeta
-     runs 0.2, 0.5, 1, 2, 4 per cent.  So for any damping a stay actually
-     has, the crossing is not merely worth modelling but comfortably
-     resolvable, and the model that resolves it is at its best exactly where
-     the criterion says to keep away.
-
-THE MODEL THAT IS FITTED
-------------------------
-Two degrees of freedom, the isolated stay mode u_s and the host mode u_h,
-both mass-normalised, coupled through the stiffness alone:
-
-    u'' + C u' + [[w_s^2, kappa], [kappa, w_h^2]] u = p(t),
-
-kappa = s w_0^2 with w_0^2 = (w_s^2 + w_h^2)/2, so the stiffness eigenvalues
-are w_0^2 (1 +- sqrt(d^2+s^2)) with d = (w_s^2-w_h^2)/(w_s^2+w_h^2), and the
-pair separates exactly as the study says.  C is Rayleigh, calibrated on the
-two coupled frequencies so both carry exactly zeta, which is the calibration
-``run_damping.py`` uses.  The forces are white and mutually uncorrelated
-with one-sided intensities G_s and G_h = rh G_s, which is what a spatially
-delta-correlated ambient field gives for two mass-normalised modes on
-different members; for this bridge rh = m_c/m_d = 0.0055 in theory and
-0.0025 by fitting the finite element spectrum, and the fitted value is used.
-
-The accelerometer sits on the stay a short way from the anchorage and reads
-
-    y = u_s'' + rb u_h'' + noise,   rb = c_b s,
-
-the second term because the stay foot follows the deck through
-v_stay(0) = cos(theta) w_deck, so a host mode moves the whole stay
-quasi-statically and the sensor sees it without any dynamic coupling at all.
-Writing the mass-normalised stay mode as phi_s and the quasi-static stay
-shape as linear in the distance from the anchorage,
-
-    rb = cos(theta) phi_a (1 - x_p/L_c) / phi_s(x_p),
-    s  = (2/n pi) cos(theta) sqrt(M_s) phi_a,
-
-so both are proportional to the host amplitude phi_a at the anchorage and
-
-    c_b = n pi (1 - x_p/L_c) / (2 sqrt(M_s) phi_s(x_p)),
-
-which is 5.81 for this bridge and a sensor 2 m up the chord.  The value is
-checked in check [7] against the coupled mode shapes of the finite element
-model, which give 5.5, and the 6 per cent difference is carried as an error
-in c_b whose effect on T is measured rather than assumed small.
-
-The one-sided acceleration spectrum the sensor records is then
-
-    S(f) = w^4 (|A_22 - rb A_12|^2 + rh |A_12 - rb A_11|^2) G_s / |det A|^2
-           + G_n,        A(w) = K - w^2 I + i w C.
-
-With rb = 0 and rh = 0 the numerator has a zero at the HOST frequency: the
-antiresonance between the two peaks sits at the host, not at the midpoint,
-and since the trace of K is invariant, w_s^2 = w_+^2 + w_-^2 - w_h^2.  The
-tension is the peaks minus the notch.  A non-zero rb moves the zero to
-w_h^2 - rb kappa, which is what makes the fourth parameter matter.
-
-THE LIKELIHOOD
---------------
-Whittle.  The periodogram I_k = (2/(fs N)) |sum_n y_n exp(-2 pi i k n/N)|^2
-has E[I_k] = S(f_k) and I_k/S_k is asymptotically Exp(1) and independent
-across k, so over a band B
-
-    l(theta) = - sum_{k in B} [ log S_k(theta) + I_k / S_k(theta) ].
-
-The Exp(1) premise is not assumed: check [1] tests it on finite element
-records with a Kolmogorov-Smirnov statistic.
-
-Two Fisher matrices are computed and compared.
-
-  EXPECTED   I_ij = sum_k dlog S_k/dtheta_i dlog S_k/dtheta_j, exact for the
-      exponential model because the score is (I_k/S_k - 1) dlog S_k and
-      I_k/S_k has unit variance.  No Monte Carlo enters it.  The derivatives
-      are central finite differences with a step chosen in check [2].
-  OBSERVED   minus the finite-difference Hessian of l at the estimate, one
-      per realisation, averaged.  It carries the realisation's own noise and
-      is the matrix an analyst would actually form.
-
-The bound is reported for three states of knowledge about the host, and the
-gap between the first and the last is the quantity the brief asks for:
-host_known (f_h and s known), fh_known (f_h known, s free), host_unknown
-(both free).  A fourth, host_unknown_rb, additionally frees the direct
-observation gain and is where the collapse actually lives.
-
-THREE ARMS, EACH ADDING ONE FAILURE MODE
-----------------------------------------
-arm 0   periodogram ordinates drawn directly as S_k(theta_true) times Exp(1),
-    so the likelihood is exactly correct and any disagreement between sample
-    variance and bound belongs to the estimator or to the information.
-arm A   a sampled acceleration record from the same two degree of freedom
-    model, integrated by exact zero-order hold at eight times the logger
-    rate, anti-alias filtered, decimated, given sensor noise and quantised,
-    with the same chain and constants as ``scripts/simulate_records.py``.
-    Adds leakage, aliasing and the measurement chain.
-arm B   a record from the full finite element bridge of ``src/cablefe.py``
-    and ``scripts/run_damping.py``, fitted with the two degree of freedom
-    model.  Adds misspecification: forty modes, a real mode shape, a real
-    G_h.  The estimand is then the pseudo-true T that minimises the
-    Kullback-Leibler divergence, computed separately by fitting the model to
-    the exact finite element spectrum, and the bias is reported against both
-    it and the true T.
-
-The multi-sensor contrast is run in arm 0 with a deck channel added and the
-two-channel Whittle likelihood l = -sum_k [log det S_k + tr(S_k^-1 I_k)].
-
-Outputs, all under data/:
-    crb_verify.csv        the checks
-    crb_bound.csv         the bound alone, on a grid, no Monte Carlo
-    crb_arm0.csv, crb_arm0_draws.csv
-    crb_armA.csv, crb_armA_draws.csv
-    crb_armB.csv, crb_armB_draws.csv
-
-Run:  python3 scripts/crb_montecarlo.py --verify
-      python3 scripts/crb_montecarlo.py --bound
+Fits a two-DOF stay-host model (see model_spectrum) to the stay-sensor
+spectrum by Whittle maximum likelihood and reports the bound on T, the
+profile-likelihood half-width, and the sample spread and bias of the estimate
+for exact periodogram draws (arm 0), simulated records (arm A) and finite
+element records (arm B). Writes data/crb_*.csv.
+Run:  python3 scripts/crb_montecarlo.py --verify --bound --criterion
       python3 scripts/crb_montecarlo.py --arm0 --armA --armB
 """
 
@@ -204,7 +17,7 @@ import os
 
 for _v in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS",
            "NUMEXPR_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
-    os.environ.setdefault(_v, "1")   # before numpy, or the workers oversubscribe
+    os.environ.setdefault(_v, "1")   # before numpy; avoids oversubscription
 
 import sys
 import time
@@ -230,19 +43,17 @@ from simulate_records import (AA_CUTOFF_FRAC, AA_KAISER_BETA,   # noqa: E402
 
 DATA = os.path.join(ROOT, "data")
 
-# ---------------------------------------------------------------------------
-# the configuration everything is run at
-# ---------------------------------------------------------------------------
+# --- configuration -----------------------------------------------------------
 
 FS = FS_DEFAULT                  # Hz, the logger rate of simulate_records
-DUR = 600.0                      # s, ten minutes, the usual ambient record
+DUR = 600.0                      # s, record length (ten minutes)
 BAND_HALF = 0.35                 # Hz either side of the pair midpoint
 SENSOR_X = 2.0                   # m up the chord, as run_damping.py uses
 
-# truth values, all calibrated against the finite element bridge in check [5]
+# true values, calibrated against the finite element bridge (check [5])
 F_HOST = 3.322130                # Hz, from the FE pair by the trace identity
 S_TUNE = 0.023380                # coupling at exact tuning
-RH = 0.0025                      # G_h / G_s
+RH = 0.0025                      # G_h / G_s, fitted to the FE spectrum
 ZETA_REF = 0.005                 # damping the noise floor is calibrated at
 PNR_REF_DB = 21.8                # peak over noise floor of the worked record
 
@@ -251,7 +62,7 @@ DGRID = (-0.060, -0.040, -0.025, -0.015, -0.008, -0.004, -0.002, 0.0,
          0.002, 0.004, 0.008, 0.015, 0.025, 0.040, 0.060)
 DGRID_MC = (-0.040, -0.015, -0.008, -0.002, 0.0, 0.002, 0.008, 0.015, 0.040)
 
-NREAL0 = 250
+NREAL0 = 250                     # realizations per configuration, by arm
 NREALA = 120
 NREALB = 40
 NPROC = max(1, (os.cpu_count() or 4) - 2)
@@ -261,17 +72,12 @@ MS_STAY = 0.5 * MC * LC
 
 
 def _c_b(x_p=SENSOR_X, n=1):
-    """Observation gain factor: rb = c_b s.  See the module docstring.
+    """Observation gain factor c_b in rb = c_b s.
 
-    NEGATIVE in the convention kappa > 0 used by the fitted model.  The tie
-    at the anchorage is a KINEMATIC constraint, so the coupling it produces
-    is an inertia coupling, and an inertia coupling m12 is equivalent near
-    the crossing to a stiffness coupling -w0^2 m12.  Writing the model with a
-    positive stiffness coupling therefore flips the sign of the host
-    coordinate and with it the sign of the direct observation gain.  The
-    magnitude is the kinematic one and is checked against the finite element
-    mode shapes in check [7], which give 5.53 to 6.10 over a 17 per cent
-    tension range against the 5.811 below.
+    c_b = -n pi (1 - x_p/L_c) / (2 sqrt(M_s) phi_s(x_p)), from the kinematic
+    tie v_stay(0) = cos(theta) w_deck at the anchorage. The sign is negative
+    because the model writes this inertia coupling as a positive stiffness
+    coupling kappa. check_cb() compares c_b with the finite element shapes.
     """
     phis = np.sqrt(2.0 / (MC * LC)) * np.sin(n * np.pi * x_p / LC)
     return -n * np.pi * (1.0 - x_p / LC) / (2.0 * np.sqrt(MS_STAY) * phis)
@@ -287,20 +93,21 @@ def T_of_fs(f_s):
 
 
 def fs_of_T(T):
-    """Inverse of :func:`T_of_fs`; the study's f_iso ~ sqrt(T).
+    """Inverse of :func:`T_of_fs`, the isolated stay frequency f_iso.
 
-    ``np.asarray`` without a dtype, deliberately: a complex tension must
-    survive this call for the complex-step derivatives to work.
+    No dtype in ``np.asarray``, so a complex tension passes through for the
+    complex-step derivatives.
     """
     return tensioned_beam_freq(1, LC, np.asarray(T), EIC, MC)
 
 
-# ---------------------------------------------------------------------------
-# the model
-# ---------------------------------------------------------------------------
+# --- the model ---------------------------------------------------------------
 
+# parameter vector theta; rb = c_b s + rb_extra
 PARAMS = ("T", "f_h", "s", "zeta", "lnGs", "lnGn", "rb_extra")
+# sets that also get a profile-likelihood half-width
 PROFILE_SETS = ("host_unknown", "host_unknown_rb")
+# free parameters for each state of knowledge about the host
 FREE_SETS = {
     "host_known": ("T", "zeta", "lnGs", "lnGn"),
     "fh_known": ("T", "s", "zeta", "lnGs", "lnGn"),
@@ -312,16 +119,10 @@ FREE_SETS = {
 def _kernel(theta, cb):
     """Frequency-independent quantities of the model, shared by every call.
 
-    Written so that it runs unchanged on a COMPLEX parameter vector: no
-    branch, no absolute value, no comparison touches the differentiated path.
-    That is what lets the information matrix be built by complex-step
-    differentiation, which has no subtractive cancellation and therefore no
-    floor under the small eigenvalues.  Ordinary central differences were
-    tried first and are not adequate here: the smallest eigenvalue of the
-    scaled information matrix is 1e-7 of the largest, and a difference
-    quotient good to 1e-8 turns that eigenvalue into noise and the bound on T
-    into a number three orders of magnitude too large.  The failure is kept
-    in the record as check [2].
+    Runs unchanged on a complex parameter vector (no branch, abs or comparison
+    on the differentiated path), so the information matrix can be built by
+    complex-step differentiation. Central differences cannot resolve the
+    smallest scaled eigenvalue, about 1e-7 of the largest (check [2]).
     """
     T, f_h, s, zeta = theta[0], theta[1], theta[2], theta[3]
     ws2 = (2.0 * np.pi * fs_of_T(T)) ** 2
@@ -340,9 +141,11 @@ def _kernel(theta, cb):
 def model_spectrum(f, theta, cb=CB, rh=RH):
     """One-sided acceleration PSD at the stay sensor.
 
-    Written out with real arithmetic rather than assembled with numpy linear
-    algebra because it is the inner loop of every likelihood evaluation and
-    of every finite difference in this script.
+    Model: u'' + C u' + K u = p, K = [[w_s^2, kappa], [kappa, w_h^2]],
+    kappa = s (w_s^2 + w_h^2) / 2, Rayleigh C with damping zeta on both modes,
+    white forces G_s and rh G_s, sensor y = u_s'' + rb u_h'' + noise G_n:
+    S = w^4 (|A22 - rb A12|^2 + rh |A12 - rb A11|^2) G_s / |det A|^2 + G_n,
+    A = K - w^2 I + i w C. Written in real arithmetic for speed.
     """
     ws2, wh2, kap, alpha, beta, rb = _kernel(theta, cb)
     om = 2.0 * np.pi * np.asarray(f, float)
@@ -364,11 +167,9 @@ def model_spectrum(f, theta, cb=CB, rh=RH):
 def model_spectrum_2ch(f, theta, cb=CB, rh=RH, gd=1.0):
     """2 by 2 one-sided spectral matrix of the stay and deck accelerations.
 
-    The deck channel reads the host coordinate with a gain ``gd`` and does
-    not see the stay coordinate, because a stay mode with a node at the
-    anchorage puts no motion into the deck.  Sensor noise is independent
-    between channels and at the same level, which is what two units of one
-    make give.
+    The deck channel reads the host coordinate with gain ``gd`` and does not
+    see the stay coordinate, which has a node at the anchorage. Sensor noise
+    is independent between channels and at the same level.
     """
     ws2, wh2, kap, alpha, beta, rb = _kernel(theta, cb)
     om = 2.0 * np.pi * np.asarray(f, float)
@@ -403,8 +204,7 @@ def pair_from_theta(theta):
 
 def theta_from_d(d, s=S_TUNE, zeta=ZETA_REF, f_h=F_HOST, lnGs=0.0,
                  lnGn=-30.0, rb_extra=0.0):
-    """Parameter vector at detuning ``d`` in the study's definition,
-    d = (f_iso - f_host)/f_iso."""
+    """Parameter vector at detuning d = (f_iso - f_host) / f_iso."""
     return np.array([T_of_fs(f_h / (1.0 - d)), f_h, s, zeta, lnGs, lnGn,
                      rb_extra])
 
@@ -419,16 +219,11 @@ def band_grid(theta, dur=DUR, fs=FS, half=BAND_HALF):
 
 def set_levels(theta, pnr_ref_db=PNR_REF_DB, dur=DUR, fs=FS, half=BAND_HALF,
                cb=CB, rh=RH):
-    """Set G_s to unity and G_n to an ABSOLUTE floor.
+    """Set G_s to unity and G_n to an absolute noise floor.
 
-    The absolute scale cancels out of everything reported, because G_s and
-    G_n are free in every fit and the information about T is invariant to a
-    common rescaling of the record.  The ratio does not cancel.  The floor is
-    a property of the accelerometer and of the wind, not of the damping, so
-    it is fixed once, at the reference damping, and then held while zeta
-    varies: a resonance peak goes as 1/zeta^2, so holding the peak-to-noise
-    ratio fixed across zeta would quietly hand the high-damping cases a
-    quieter instrument than the low-damping ones.
+    The floor gives peak-to-noise ratio ``pnr_ref_db`` at the reference
+    damping ZETA_REF and is then held as zeta varies, so the instrument noise
+    does not change with damping. The common scale cancels from every result.
     """
     th = np.array(theta, dtype=float)
     th[4], th[5] = 0.0, -60.0
@@ -439,9 +234,7 @@ def set_levels(theta, pnr_ref_db=PNR_REF_DB, dur=DUR, fs=FS, half=BAND_HALF,
     return th
 
 
-# ---------------------------------------------------------------------------
-# the Whittle likelihood
-# ---------------------------------------------------------------------------
+# --- the Whittle likelihood --------------------------------------------------
 
 def periodogram(y, fs):
     """One-sided periodogram with E[I_k] = S(f_k), positive frequencies."""
@@ -481,9 +274,7 @@ def nll_2ch(theta, f, I, cb=CB, rh=RH):
     return v if np.isfinite(v) else 1e300
 
 
-# ---------------------------------------------------------------------------
-# fitting
-# ---------------------------------------------------------------------------
+# --- fitting -----------------------------------------------------------------
 
 LOGGED = ("T", "s", "zeta")
 
@@ -559,15 +350,12 @@ def peak_start(f, I, theta_true, nsm=9):
 
 
 def fit_mle(f, I, theta_true, free, cb=CB, rh=RH, two_ch=False):
-    """Multi-start maximum likelihood, with the diagnostics the brief asks for.
+    """Multi-start maximum likelihood fit with bimodality diagnostics.
 
-    Four starts, all kept.  The truth, which no analyst has but which makes
-    an optimiser failure unambiguous.  The MIRROR of the truth, which swaps
-    the stay and the host about the pair midpoint and is the competing
-    explanation of the same two peaks; the gap between its optimum and the
-    best one measures how bimodal the likelihood is.  A data-driven start
-    from the peaks and the notch, which is what an analyst has.  And a start
-    with the coupling ten times too small, which probes the s -> 0 boundary.
+    Four starts: the truth (exposes optimizer failures), its mirror with stay
+    and host swapped (the competing explanation of the two peaks), a
+    data-driven start from the peaks and the notch, and a start with the
+    coupling ten times too small.
     """
     base = np.array(theta_true, dtype=float)
     bnds = bounds_for(theta_true)
@@ -602,21 +390,18 @@ def fit_mle(f, I, theta_true, free, cb=CB, rh=RH, two_ch=False):
                 runner_T=runner["theta"][0] if runner else np.nan)
 
 
-# ---------------------------------------------------------------------------
-# the Fisher information, numerically
-# ---------------------------------------------------------------------------
+# --- Fisher information ------------------------------------------------------
 
 FD_REL = {"T": 3e-5, "f_h": 3e-6, "s": 3e-4, "zeta": 3e-4,
           "lnGs": 1e-4, "lnGn": 1e-4, "rb_extra": 3e-4}
-CS_H = 1e-30                      # complex step, small enough to be exact
+CS_H = 1e-30                      # complex step; exact, no cancellation
 
 
 def _steps(theta, free, scale=1.0):
-    """Central-difference steps, used only for the OBSERVED Hessian.
+    """Central-difference steps for the observed Hessian and check [2].
 
-    The observed Hessian differences a likelihood that contains the
-    periodogram, which is data and not an analytic function of the
-    parameters, so complex step does not apply to it.
+    The observed likelihood contains the periodogram, which is data, so the
+    complex step does not apply to it.
     """
     h = []
     for n in free:
@@ -633,11 +418,8 @@ def _steps(theta, free, scale=1.0):
 def _dlogS(theta, f, free, cb, rh, scale=1.0, method="cs"):
     """d log S / d theta at every bin.
 
-    ``method="cs"`` uses a complex step: for a function real-analytic in a
-    real parameter, Im f(x + i h)/h is the derivative with a truncation error
-    of order h^2 and NO cancellation, so h can be taken at 1e-30 and the
-    result is correct to machine precision.  ``method="fd"`` is the ordinary
-    central difference and is kept so that check [2] can show what it costs.
+    ``method="cs"`` uses the complex step Im log S(theta + i h) / h, exact
+    to machine precision; ``method="fd"`` uses central differences (check [2]).
     """
     if method == "fd":
         h = _steps(theta, free, scale)
@@ -659,12 +441,10 @@ def _dlogS(theta, f, free, cb, rh, scale=1.0, method="cs"):
 
 def fim_expected(theta, f, free, cb=CB, rh=RH, scale=1.0, two_ch=False,
                  gd=1.0, method="cs"):
-    """Expected Whittle information by central finite differences.
+    """Expected Whittle information matrix.
 
-    For one channel it is sum_k dlog S dlog S^T, exact because the score is
-    (I_k/S_k - 1) dlog S_k with I_k/S_k of unit variance.  For two channels
-    the exact form is the Slepian-Bangs expression
-    sum_k tr(S^-1 dS_i S^-1 dS_j) for a circular complex Gaussian.
+    One channel: sum_k dlog S_k dlog S_k^T. Two channels: the Slepian-Bangs
+    form sum_k tr(S^-1 dS_i S^-1 dS_j), with central differences.
     """
     if not two_ch:
         D = _dlogS(theta, f, free, cb, rh, scale, method)
@@ -726,15 +506,9 @@ SING_TOL = 1e-11                  # relative eigenvalue below which the
 def crb_T(F, tol=SING_TOL):
     """Bound on T in newtons squared, and the scaled condition number.
 
-    The matrix is symmetrically rescaled by its own diagonal before
-    inversion: T is 1.5e5 newtons and zeta is 5e-3, so the raw matrix has a
-    condition number of 1e11 for reasons of units alone, and calling that ill
-    conditioning would be a mistake.  After rescaling, an eigenvalue below
-    ``tol`` times the largest is treated as exactly zero and the bound is
-    returned as infinite rather than as the large number a numerical inverse
-    would produce.  That case is not hypothetical: with the sensor's direct
-    sight of the host free, this matrix is singular to machine precision at
-    exact tuning, and an unguarded inverse reports 1e6 instead of infinity.
+    The matrix is rescaled by its diagonal before inversion to remove the
+    spread of units. An eigenvalue below ``tol`` times the largest is treated
+    as zero, and the bound is then returned as infinite.
     """
     d = np.diag(F).copy()
     if np.any(d <= 0) or not np.all(np.isfinite(F)):
@@ -749,24 +523,13 @@ def crb_T(F, tol=SING_TOL):
     return (v if v > 0 else np.inf), cond
 
 
-# ---------------------------------------------------------------------------
-# the expected log-likelihood ratio, which survives a singular information
-# ---------------------------------------------------------------------------
+# --- expected log-likelihood ratio and profile half-width --------------------
 
 def expected_lr(theta, theta0, f, cb=CB, rh=RH):
     """E[l(theta0) - l(theta)] for the Whittle likelihood, exactly.
 
-    With I_k of mean S_k(theta0) the expectation of the log-likelihood ratio
-    is the Kullback-Leibler divergence
-
-        sum_k [ log(S/S_0) + S_0/S - 1 ],
-
-    which needs no Monte Carlo and no quadratic approximation.  It is the
-    quantity to use when the information matrix is singular: a singular
-    information matrix says the likelihood is FLAT TO SECOND ORDER along some
-    direction, not that it is flat, and here the valley turns out to be
-    quartic, so the divergence is finite and grows as the fourth power of the
-    displacement while the Cramer-Rao bound is infinite.
+    This is the Kullback-Leibler divergence sum_k [log(S/S_0) + S_0/S - 1].
+    It stays finite where the information matrix is singular.
     """
     S = model_spectrum(f, theta, cb, rh)
     S0 = model_spectrum(f, theta0, cb, rh)
@@ -778,13 +541,10 @@ def profile_halfwidth_T(theta0, f, free, cb=CB, rh=RH, level=0.5,
                         rel_max=0.30, start=2e-4):
     """Half-width in T of the expected profile likelihood at ``level``.
 
-    The set of T for which the expected log-likelihood ratio, minimised over
-    every other free parameter, stays below ``level``.  At level 0.5 this is
-    the one standard error interval a likelihood ratio would give, and where
-    the information matrix is non-singular it agrees with the Cramer-Rao
-    bound; where it is singular it is finite and the bound is not.  Returned
-    as a fraction of T, averaged over the two sides, with the two sides also
-    returned because the valley is not symmetric.
+    The range of T over which the expected log-likelihood ratio, minimized
+    over the other free parameters, stays below ``level`` (0.5 gives one
+    standard error). Returns the mean relative half-width and the upper and
+    lower sides.
     """
     others = [n for n in free if n != "T"]
     bnds = bounds_for(theta0)
@@ -863,19 +623,16 @@ def bound_row(theta, dur=DUR, fs=FS, half=BAND_HALF, cb=CB, rh=RH,
     return row
 
 
-# ---------------------------------------------------------------------------
-# arm A: a sampled record from the two degree of freedom model
-# ---------------------------------------------------------------------------
+# --- arm A: sampled records of the two-DOF model -----------------------------
 
 class TwoDofRecorder:
-    """The fitted model made into a record, with simulate_records' chain.
+    """Sampled acceleration records of the two-DOF model.
 
-    Exact zero-order hold on each modal oscillator at ``oversample`` times
-    the logger rate, a linear-phase Kaiser anti-alias low pass at 0.4 fs
-    applied with ``fftconvolve`` so its group delay is removed, decimation,
-    white sensor noise and uniform quantisation.  The damping is Rayleigh and
-    therefore classical, so the two real modes decouple the equations exactly
-    and the modal form is a change of basis rather than an approximation.
+    Uses the measurement chain of simulate_records: exact zero-order hold on
+    each modal oscillator at ``oversample`` times the logger rate, a
+    linear-phase Kaiser anti-alias filter at 0.4 fs with its group delay
+    removed, decimation, white sensor noise and uniform quantization.
+    Rayleigh damping is classical, so the modal form is exact.
     """
 
     def __init__(self, theta, cb=CB, rh=RH, fs=FS, oversample=OVERSAMPLE):
@@ -935,9 +692,7 @@ class TwoDofRecorder:
         return y
 
 
-# ---------------------------------------------------------------------------
-# the Monte Carlo arms
-# ---------------------------------------------------------------------------
+# --- Monte Carlo arms --------------------------------------------------------
 
 def _one_realisation(job):
     """One record, one set of fits.  Top level so it can be pickled."""
@@ -1000,7 +755,7 @@ def _summarise(draws, theta, cb, rh, dur, fs, half, free_keys, T_true,
             (d[f"runner_gap_{key}"] < 2.0).mean())
         row[f"med_mirror_gap_{key}"] = float(d[f"mirror_gap_{key}"].median())
         row[f"crbobs_med_{key}"] = float(np.median(d[f"crbobs_{key}"]))
-        # dispersion robust to the multimodality the bimodal fraction reports
+        # dispersion robust to bimodal fits
         q = np.percentile(t, [15.865, 84.135])
         row[f"robust_cv_{key}"] = 0.5 * (q[1] - q[0]) / T_true
     return row, d
@@ -1045,20 +800,15 @@ def run_mc(arm, configs, free_keys, nreal, tag, nproc=NPROC):
     return out
 
 
-# ---------------------------------------------------------------------------
-# arm B: the full finite element bridge, fitted with the two DOF model
-# ---------------------------------------------------------------------------
+# --- arm B: finite element records fitted with the two-DOF model -------------
 
 def fe_calibrate(T, zeta, half=BAND_HALF, dur=DUR, fs=FS, cb=CB,
                  snr_db=20.0, sim=None):
-    """Fit the two DOF model to the EXACT finite element spectrum.
+    """Fit the two-DOF model to the exact finite element spectrum.
 
-    This is the Kullback-Leibler projection of the truth onto the fitted
-    model, so the parameters it returns are the pseudo-true ones the maximum
-    likelihood estimate is consistent for, and ``T_pseudo`` is the estimand
-    arm B's bias should be measured against.  ``T`` itself is the estimand
-    the engineer cares about, so both are reported and the difference is the
-    misspecification bias.
+    The result is the Kullback-Leibler projection of the truth onto the
+    model. ``T_pseudo`` is the tension the estimate converges to, and
+    T_pseudo - T is the misspecification bias.
     """
     from simulate_records import RecordSimulator
     sim = RecordSimulator(T, zeta) if sim is None else sim
@@ -1108,8 +858,7 @@ def _one_fe_realisation(job):
     fa, Ia = periodogram(rec["a_stay"], rec["fs"])
     m = (fa >= f0 - half) & (fa <= f0 + half)
     f, I = fa[m], Ia[m]
-    # the level parameters of the pseudo-truth refer to a different absolute
-    # scale, so rescale them to this record before starting the optimiser
+    # rescale the pseudo-true level parameters to this record's absolute scale
     th = np.array(theta_p, dtype=float)
     sc = np.log(np.median(I) / np.median(model_spectrum(f, th, cb, rh)))
     th[4] += sc
@@ -1186,9 +935,7 @@ def run_armB(tensions, zetas, nreal=NREALB, free_keys=("host_unknown",),
     return out
 
 
-# ---------------------------------------------------------------------------
-# the bound map, no Monte Carlo
-# ---------------------------------------------------------------------------
+# --- bound map, no Monte Carlo -----------------------------------------------
 
 def run_bound():
     rows = []
@@ -1267,30 +1014,28 @@ def run_bound():
     return out
 
 
-# ---------------------------------------------------------------------------
-# verification
-# ---------------------------------------------------------------------------
+# --- verification ------------------------------------------------------------
 
 VERIFY_NOTES = """
-[1] the Whittle premise: I_k/S_k on finite element records, mean, variance
+[1] the Whittle assumption: I_k/S_k on finite element records, mean, variance
     and a Kolmogorov-Smirnov test against Exp(1)
 [2] the finite-difference step for the information matrix, a factor of ten
     either side of the choice
 [3] the expected information against the observed information averaged over
-    realisations, and against the sample covariance of the score
+    realizations, and against the sample covariance of the score
 [4] a case with a known answer: one isolated mode, where the bound is
     checked against the sample variance of the estimate
 [5] the two DOF model against the exact finite element spectrum, which is
     the size of arm B's misspecification
-[6] invariance of the bound on T under reparametrisation of the nuisances
+[6] invariance of the bound on T under reparametrization of the nuisances
 [7] the observation gain factor c_b against the finite element mode shapes
 [8] the arm A simulator: its periodogram against its own analytic spectrum
 [9] the null direction of the information matrix: that the log spectrum
     changes only at second order along it, so the singularity is real and
-    not a rounding artefact, and that the divergence along it grows as the
+    not a rounding artifact, and that the divergence along it grows as the
     fourth power of the step
 [10] the cost in tension of an error in the observation gain factor c_b,
-    which is the external knowledge identifiability rests on
+    which is the external knowledge that identifiability depends on
 """
 
 
@@ -1321,8 +1066,7 @@ def check_whittle_premise(rows, zetas=(0.005, 0.02), nseed=4):
 
 
 def check_fd_step(rows):
-    """Complex step against central differences, which is where the bound
-    on T with the observation gain free was got wrong the first time."""
+    """Complex step against central differences for the expected information."""
     for z in (0.002, 0.02):
         for d in (0.0, 0.02):
             th = set_levels(theta_from_d(d, zeta=z))
@@ -1442,15 +1186,11 @@ def check_invariance(rows):
 def check_cb(rows):
     """c_b against the finite element coupled mode shapes, sign-safe.
 
-    The two coupled mode shapes are read at the stay sensor and at the deck
-    anchorage, each normalised so the anchorage amplitude is positive, which
-    removes the arbitrary sign an eigensolver attaches to a mode.  The two
-    DOF model is built at the SAME frequencies, taken from the finite element
-    pair by the trace and determinant identities w_h^2 = w_+^2 + w_-^2 - w_s^2
-    and kappa^2 = w_s^2 w_h^2 - w_+^2 w_-^2 with w_s the isolated stay
-    frequency, so nothing is fitted.  The ratio of the two modes' sensor
-    amplitudes is then a Mobius function of rb and is inverted for rb in
-    closed form.
+    Each coupled shape is normalized to a positive anchorage amplitude. The
+    two-DOF model uses the same frequencies, from the trace and determinant
+    identities w_h^2 = w_+^2 + w_-^2 - w_s^2 and
+    kappa^2 = w_s^2 w_h^2 - w_+^2 w_-^2. The ratio of the two modes' sensor
+    amplitudes is a Mobius function of rb, inverted in closed form.
     """
     from simulate_records import RecordSimulator
     vals = []
@@ -1564,7 +1304,7 @@ def check_cb_error(rows):
             rows.append(dict(check="10_cb_error", d=d, cb_err=err,
                              T_bias_pct=100 * (np.exp(r.x[0]) - 1.0),
                              kl_at_opt=float(r.fun)))
-            print(f"  [10] d {d:+.3f}, c_b wrong by {100*err:+.0f} %: the "
+            print(f"  [10] d {d:+.3f}, c_b in error by {100*err:+.0f} %: the "
                   f"best fit moves T by {100*(np.exp(r.x[0])-1):+.4f} % "
                   f"(residual divergence {r.fun:.4f})")
 
@@ -1595,25 +1335,19 @@ def run_verify():
     print("\nwrote data/crb_verify.csv")
 
 
-# ---------------------------------------------------------------------------
+# --- screening criterion beside the bound ------------------------------------
 
 
 def run_criterion(tols=(0.02, 0.05, 0.10), zetas=ZETAS, s=S_TUNE):
-    """The study's criterion beside the precision a coupled fit can reach.
+    """Screening criterion beside the precision a coupled fit can reach.
 
-    |d| >= (s^2 - tol^2)/(2 tol) is exactly eps <= tol with
-    eps = sqrt(d^2+s^2) - |d|, which the manuscript already states as a
-    TENSION error and not a frequency one, so the criterion is a statement
-    about the BIAS the incumbent isolated-cable inversion carries, and it says: stay far enough
-    from the crossing.  The quantity it has to be compared with, if it is to
-    become an identifiability criterion, is the precision a coupled fit can
-    reach at the same detuning.  This tabulates both, and the comparison runs
-    the other way: the coupled fit is at its most precise AT the crossing and
-    loses precision away from it, because the host-dominated peak that
-    carries the correction is strongest when the mixing is strongest.
+    |d| >= (s^2 - tol^2)/(2 tol) is exactly eps <= tol, with
+    eps = sqrt(d^2 + s^2) - |d| the tension bias of the isolated-cable
+    inversion. Tabulates the bound on T at |d| = 0, |d|_crit and 2 |d|_crit.
+    Writes data/crb_criterion.csv.
     """
     rows = []
-    print("the criterion beside the bound (per cent of T, 600 s, one sensor)")
+    print("screening criterion and bound (percent of T, 600 s, one sensor)")
     print("  zeta   tol   |d|_crit   eps at |d|_crit   cv at 0   cv at "
           "|d|_crit   cv at 2|d|_crit")
     for z in zetas:
@@ -1665,7 +1399,7 @@ def main():
     if a.criterion:
         run_criterion()
     if a.arm0:
-        print("\narm 0: exact Whittle draws, the information question alone")
+        print("\narm 0: exact Whittle draws, information content only")
         cfgs = []
         for z in (0.002, 0.005, 0.020):
             for d in DGRID_MC:
@@ -1692,8 +1426,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-# ---------------------------------------------------------------------------
-# the screening criterion, read as a precision statement
-# ---------------------------------------------------------------------------

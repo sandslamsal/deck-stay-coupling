@@ -1,46 +1,12 @@
 # -*- coding: utf-8 -*-
-"""The damper traverse as a FALSIFICATION test, not a consistency check.
+"""Test whether the damper traverse excludes two rival coupling hypotheses.
 
-scripts/validate_traverse.py measures, from the shift of the N8E cable line
-when the dampers carried global mode 1 from 0.75 Hz to 0.93 Hz across it,
-
-    mu_eff = 7.2e-4 to 8.3e-3      (equivalently s = 1.6 to 5.2 per cent)
-
-and sets that against an independent structural estimate built from the mode
-shape ordinate and the deck modal mass, 1.3e-5 to 1.8e-3.  The two overlap.
-A referee is entitled to reply that two ranges that wide overlapping is a
-property of their widths, not evidence for the group.  The stronger claim
-would be that the traverse EXCLUDES the rival.  This script tests whether it
-does, for two rivals, against the same reads:
-
-  H_plain  the plain mass ratio mu = M_s / M_deck, which ignores the
-           anchorage ordinate.  This is the group the field reaches for by
-           default and the one the paper argues against.
-  H_null   no coupling at all, mu_eff = 0, so the line does not move.
-
-Method.  A hypothesis fixes the split s.  The isolated stay frequency f_iso
-is an unknown nuisance parameter, so the rival is given its best shot:
-f_iso is chosen to make BOTH reads as consistent as possible and the
-surviving miss is quoted in multiples of the 4 mHz read uncertainty,
-
-    chi(s) = min over f_iso of max( miss(f_pred_no,  band_no),
-                                    miss(f_pred_yes, band_yes) ) / sigma
-
-chi = 0 is full consistency; chi = 3 means the rival's best fit still misses
-an observed band by three read uncertainties.  A second, less generous
-statistic anchors f_iso on the undamped read and compares the PREDICTED
-shift with the observed shift envelope; both are reported, and the
-conservative one (chi) governs every verdict.
-
-HONEST BOTTOM LINE, stated here because it is the result and not the hope:
-the traverse does NOT falsify the plain mass ratio over the deck modal mass
-range the paper carries.  It falsifies it only for the lighter half of that
-range, and weakly there.  What does falsify it, decisively, is the N7E null
-in the same campaign, and that calculation is included at the end so the
-claim can be moved to where it survives.
-
-Creates data/falsify_traverse.csv and data/falsify_traverse_thresholds.csv.
-Modifies nothing.  Run:  python3 scripts/falsify_traverse.py
+Uses the N8E stay reads with and without dampers (global mode 1 at 0.75 and
+0.93 Hz) to test the plain mass ratio mu = M_s / M_deck (H_plain) and zero
+coupling (H_null) by chi(s), the best-fit band miss in read uncertainties.
+Also tests H_plain against the N7E stay-deck spacing. Writes
+data/falsify_traverse.csv and data/falsify_traverse_thresholds.csv.
+Run: python3 scripts/falsify_traverse.py
 """
 from __future__ import annotations
 import os
@@ -58,13 +24,12 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, os.path.join(ROOT, "src"))
 import cablefe                                              # noqa: E402
 
-# --------------------------------------------------------------------------
-# the record
-# --------------------------------------------------------------------------
+# --- the record ---
 FD_NO, FD_YES = 0.750, 0.930        # global mode 1, without / with dampers
 N = 1
-# Values transcribed from Kumar (2011), PhD thesis, University of Trento (Ponte del Mare footbridge). They are not redistributed with
-# this code: they live in data/external/falsify_traverse_data.py (see README).
+# Values transcribed from Kumar (2011), PhD thesis, University of Trento
+# (Ponte del Mare footbridge). They are not redistributed with this code;
+# they live in data/external/falsify_traverse_data.py (see README).
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), "data", "external"))
 try:
@@ -90,14 +55,11 @@ def rule(t=""):
         print("  " + t)
         print("=" * W)
 
-# --------------------------------------------------------------------------
-# branch models, both vectorised in f_iso
-# --------------------------------------------------------------------------
+# --- branch models, vectorized in f_iso ---
 def f_lin(f_iso, f_deck, s):
     """Stay-dominated branch, linear-frequency two-level repulsion.
 
-    The model validate_traverse.py inverts, reproduced here so the
-    falsification is self-contained and can be diffed against it.
+    The model that validate_traverse.py inverts.
     """
     f_iso = np.asarray(f_iso, dtype=float)
     D = f_iso - f_deck
@@ -107,13 +69,11 @@ def f_lin(f_iso, f_deck, s):
 def f_2dof(f_iso, f_deck, s):
     """Stay-dominated branch of the inertially coupled 2-DOF pair, closed form.
 
-    K = diag(wa^2, wb^2), M = [[1, s], [s, 1]] in modal coordinates.  The
-    characteristic polynomial is lam^2 (1 - s^2) - lam (a + b) + a b = 0 with
-    a = wa^2, b = wb^2, and the stay-dominated root is the upper one while
-    the stay sits above the deck mode and the lower one once it sits below.
-    At exact tuning the pair splits by s to O(s^3), the same normalisation
-    Eq. (split) uses, so any difference from f_lin is model error in the
-    inversion and not a difference of convention.
+    K = diag(wa^2, wb^2), M = [[1, s], [s, 1]] in modal coordinates, so
+    lam^2 (1 - s^2) - lam (a + b) + a b = 0 with a = wa^2, b = wb^2. The
+    stay-dominated root is the upper one while the stay sits above the deck
+    mode and the lower one below it. At exact tuning the pair splits by s to
+    O(s^3), the same normalization as f_lin.
     """
     f_iso = np.asarray(f_iso, dtype=float)
     a = (2 * np.pi * f_iso) ** 2
@@ -148,9 +108,7 @@ def s_from_mu(mu, th):
     return cablefe.veering_split(mu, th, N)
 
 
-# --------------------------------------------------------------------------
-# 0. verification, before anything is written down as fact
-# --------------------------------------------------------------------------
+# --- 0. verification ---
 rule("0  VERIFICATION")
 mu_p, th_p = 3.0e-3, np.deg2rad(22.0)
 s_p = s_from_mu(mu_p, th_p)
@@ -160,7 +118,7 @@ print("  cablefe.veering_split round trip  : mu %.4e -> s %.6f -> mu %.4e  OK"
 assert np.isclose(cablefe.mu_effective(M_S, 1e-3), M_S * 1e-6)
 print("  cablefe.mu_effective identity      : OK")
 
-# closed-form 2-DOF branch against a numerical generalised eigensolve
+# closed-form 2-DOF branch against a numerical generalized eigensolve
 worst = 0.0
 for s_t in (0.01, 0.05, 0.10):
     for fi in (0.80, 0.83, 0.86):
@@ -202,23 +160,21 @@ ok_s = (abs(100 * meas.s_linear.min() - 1.6) < 0.05
 ok_mu = (abs(meas.mu_linear.min() / 7.2e-4 - 1) < 0.02
          and abs(meas.mu_linear.max() / 8.3e-3 - 1) < 0.02)
 print("  reproduce validate_traverse.py:")
-print("    s      = %.2f to %.2f %%      (manuscript 1.6 to 5.2 %%)   %s"
+print("    s      = %.2f to %.2f %%      (expected 1.6 to 5.2 %%)   %s"
       % (100 * meas.s_linear.min(), 100 * meas.s_linear.max(),
          "OK" if ok_s else "MISMATCH"))
-print("    mu_eff = %.2e to %.2e (manuscript 7.2e-4 to 8.3e-3)  %s"
+print("    mu_eff = %.2e to %.2e (expected 7.2e-4 to 8.3e-3)  %s"
       % (meas.mu_linear.min(), meas.mu_linear.max(),
          "OK" if ok_mu else "MISMATCH"))
 d_rel = (meas.s_exact - meas.s_linear) / meas.s_linear
 print("    inverting the exact 2-DOF pair instead moves s by %+.2f to %+.2f %%"
       % (100 * d_rel.min(), 100 * d_rel.max()))
-print("    (relative), giving mu_eff = %.2e to %.2e.  Model error is well"
+print("    (relative), giving mu_eff = %.2e to %.2e.  The model difference is"
       % (meas.mu_exact.min(), meas.mu_exact.max()))
-print("    inside the read uncertainty; both models are carried below anyway.")
+print("    within the read uncertainty; both models are used below.")
 print()
 
-# --------------------------------------------------------------------------
-# the exclusion functional
-# --------------------------------------------------------------------------
+# --- the exclusion functional ---
 FGRID = np.linspace(0.740, 0.930, 38001)        # 5 uHz, vs a 4 mHz sigma
 
 
@@ -256,10 +212,11 @@ def s_window(target, model, smax=0.60):
 
 
 def s_at_chi(target, model, smax=0.60):
-    """Largest s the reads still admit at `target` sigmas, i.e. the upper
-    crossing of the U-shaped chi(s).  Bisection alone would be wrong: chi is
-    also positive for s below the consistent window, because the two read
-    bands are disjoint and a small split cannot reach across them."""
+    """Largest s the reads admit at `target` sigmas.
+
+    This is the upper crossing of the U-shaped chi(s). A grid scan precedes
+    the bisection because chi is also positive below the consistent window.
+    """
     grid = np.linspace(1e-5, smax, 4000)
     ok = np.array([chi(s, model)[0] <= target for s in grid])
     if not ok.any():
@@ -279,8 +236,8 @@ def s_at_chi(target, model, smax=0.60):
 
 w_lin = s_window(0.0, f_lin)
 w_ex = s_window(0.0, f_2dof)
-print("  chi(s) is U-shaped, as it must be: too small a split cannot carry the")
-print("  line across two disjoint read bands, too large a split overshoots.")
+print("  chi(s) is U-shaped: a small split cannot move the line across the two")
+print("  disjoint read bands, and a large split overshoots them.")
 print("  Consistent window, linear model    : s = %.2f to %.2f %%"
       % (100 * w_lin[0], 100 * w_lin[1]))
 print("  pairwise solve, for comparison     : s = %.2f to %.2f %%   %s"
@@ -291,10 +248,8 @@ print("  Consistent window, exact 2-DOF     : s = %.2f to %.2f %%"
       % (100 * w_ex[0], 100 * w_ex[1]))
 print()
 
-# --------------------------------------------------------------------------
-# (a) what the plain mass ratio predicts
-# --------------------------------------------------------------------------
-rule("(a)  RIVAL H_plain: mu = M_s / M_deck, anchorage ordinate ignored")
+# --- (a) what the plain mass ratio predicts ---
+rule("(a)  H_plain: mu = M_s / M_deck, anchorage ordinate ignored")
 print("  N8E: m = 20.2 kg/m, L = 80 m -> M_s = %.0f kg (half-sine modal mass);"
       % M_S)
 print("  deck modal mass 40 to 160 t; inclination 19 to 26 deg; n = 1.")
@@ -337,18 +292,16 @@ ov_hi = min(apl.mu_plain.max(), meas.mu_linear.max())
 print("  Measured bracket: mu = %.2e to %.2e."
       % (meas.mu_linear.min(), meas.mu_linear.max()))
 if ov_lo <= ov_hi:
-    print("  H_plain OVERLAPS it on %.2e to %.2e, so the traverse cannot"
+    print("  H_plain overlaps it on %.2e to %.2e, so the traverse cannot"
           % (ov_lo, ov_hi))
-    print("  exclude H_plain as a whole.  The question is where the boundary")
-    print("  falls, and (b) puts it there.")
+    print("  exclude H_plain as a whole.  Part (b) gives the deck modal mass")
+    print("  below which it is excluded.")
 else:
-    print("  H_plain is DISJOINT from it: excluded outright.")
+    print("  H_plain is disjoint from it and is excluded.")
 print()
 
-# --------------------------------------------------------------------------
-# (b) exclusion test
-# --------------------------------------------------------------------------
-rule("(b)  DOES THE TRAVERSE EXCLUDE H_plain?")
+# --- (b) exclusion test ---
+rule("(b)  EXCLUSION OF H_plain BY THE TRAVERSE")
 brows = []
 for name, model in MODELS.items():
     for tgt in (0.0, 1.0, 2.0, 3.0):
@@ -359,9 +312,9 @@ for name, model in MODELS.items():
                               s_crit=s_c, mu_crit=mu_c,
                               M_deck_crit_t=M_S / mu_c / 1e3))
 bnd = pd.DataFrame(brows)
-print("  H_plain survives only where its predicted split stays inside what the")
-print("  reads admit.  Excluded at the stated number of read uncertainties")
-print("  only if the deck modal mass is BELOW:")
+print("  H_plain is consistent only where its predicted split lies inside the")
+print("  window the reads admit.  It is excluded at the stated number of read")
+print("  uncertainties when the deck modal mass is below:")
 print()
 print("  model      sigmas  theta   s admitted   mu_crit     M_deck below which")
 print("  " + "-" * 76)
@@ -373,10 +326,10 @@ print()
 m0 = bnd[(bnd.model == "linear") & (bnd.sigmas == 0)].M_deck_crit_t
 m1 = bnd[(bnd.model == "linear") & (bnd.sigmas == 1)].M_deck_crit_t
 m2 = bnd[(bnd.model == "linear") & (bnd.sigmas == 2)].M_deck_crit_t
-print("  Against the carried range, 40 to 160 t:")
+print("  Against the assumed range, 40 to 160 t:")
 print("    zero allowance : excluded below %.0f to %.0f t, the lighter %.0f to"
       % (m0.min(), m0.max(), 100 * (m0.min() - 40) / 120))
-print("                     %.0f per cent of the range;" % (100 * (m0.max() - 40) / 120))
+print("                     %.0f percent of the range;" % (100 * (m0.max() - 40) / 120))
 print("    one sigma      : excluded below %.0f to %.0f t;" % (m1.min(), m1.max()))
 print("    two sigma      : excluded below %.0f to %.0f t." % (m2.min(), m2.max()))
 print()
@@ -390,20 +343,20 @@ for Md in np.linspace(MDECK_LO, MDECK_HI, 481):
             best = (c, Md, np.rad2deg(th), s, fi)
 c_best, Md_best, th_best, s_best, fi_best = best
 pn, py = float(f_lin(fi_best, FD_NO, s_best)), float(f_lin(fi_best, FD_YES, s_best))
-print("  H_plain's best shot anywhere in 40 to 160 t:")
+print("  Best fit of H_plain over 40 to 160 t:")
 print("    M_deck = %.0f t, theta = %.0f deg, s = %.3f %%, f_iso = %.4f Hz;"
       % (Md_best / 1e3, th_best, 100 * s_best, fi_best))
 print("    predicts %.4f Hz undamped and %.4f Hz damped, shift %+.1f mHz;"
       % (pn, py, 1e3 * (py - pn)))
 print("    worst band miss %.2f read uncertainties  =>  %s."
-      % (c_best, "EXCLUDED" if c_best > 2 else "NOT EXCLUDED"))
+      % (c_best, "excluded" if c_best > 2 else "not excluded"))
 print()
 
 apl["chi_sigmas"] = [chi(s, f_lin)[0] for s in apl.s_plain]
 apl["shift_gap_sigmas"] = [max(SHIFT_LO - r.pred_shift, 0.0,
                                r.pred_shift - SHIFT_HI) / SIG_SHIFT
                            for _, r in apl.iterrows()]
-print("  The same statement in shift currency (anchored f_iso, predicted shift")
+print("  The same test on the shift (anchored f_iso, predicted shift")
 print("  against the observed envelope %+.1f to %+.1f mHz, over %.1f mHz):"
       % (1e3 * SHIFT_LO, 1e3 * SHIFT_HI, 1e3 * SIG_SHIFT))
 for Md in (40, 60, 80, 100, 120, 160):
@@ -414,15 +367,13 @@ for Md in (40, 60, 80, 100, 120, 160):
              g.shift_gap_sigmas.min(), g.shift_gap_sigmas.max(),
              g.chi_sigmas.min()))
 print()
-print("  The anchored statistic is the harsher of the two because it spends")
-print("  the undamped read on the anchor; chi lets f_iso float and is the one")
-print("  a referee would insist on.  Both are quoted, chi governs.")
+print("  The anchored statistic is the stricter of the two because it uses")
+print("  the undamped read as the anchor; chi lets f_iso vary freely.")
+print("  Both are given; chi governs.")
 print()
 
-# --------------------------------------------------------------------------
-# (c) the null
-# --------------------------------------------------------------------------
-rule("(c)  RIVAL H_null: mu_eff = 0, the line does not move")
+# --- (c) the null ---
+rule("(c)  H_null: mu_eff = 0, the line does not move")
 c0, f0_ = chi(0.0, f_lin)
 print("  Prediction: shift exactly 0 mHz, the same reading in both states.")
 print("  Observed:   %+.1f to %+.1f mHz over the twelve read pairs."
@@ -431,7 +382,7 @@ print()
 print("  Band test.  With s = 0 the line sits at f_iso in both states, so one")
 print("  frequency must satisfy both bands, [%.4f, %.4f] and [%.4f, %.4f],"
       % (BAND_NO[0], BAND_NO[1], BAND_YES[0], BAND_YES[1]))
-print("  which are disjoint by only %.1f mHz.  Best miss %.2f sigma."
+print("  which are disjoint by %.1f mHz.  Best miss %.2f sigma."
       % (1e3 * (BAND_NO[0] - BAND_YES[1]), c0))
 print()
 zs = np.array([abs(b - a) / SIG_SHIFT for a in READ_NO for b in READ_YES])
@@ -452,28 +403,26 @@ print("  all %d damped reads; under H_null the seven are exchangeable, so that"
 print("  separation has one-sided p = 1/C(7,3) = %.3f, a %.2f sigma equivalent."
       % (p_rank, norm.isf(p_rank)))
 print()
-print("  HONEST READING.  On magnitude the null is NOT excluded: the most")
-print("  favourable single pair reaches %.2f sigma and the band means %.2f,"
+print("  H_null.  On magnitude the null is not excluded: the largest")
+print("  single pair reaches %.2f sigma and the band means %.2f,"
       % (zs.max(), abs(dm) / se))
-print("  both short of two.  The evidence against the null is the sign, not")
-print("  the size: every damped read lies below every undamped read, worth")
-print("  p = %.3f on a rank test and a %.2f sigma band miss.  Two corrections"
+print("  both below two.  The evidence against the null is the sign:")
+print("  every damped read lies below every undamped read, with")
+print("  p = %.3f on a rank test and a %.2f sigma band miss.  Two effects"
       % (p_rank, c0))
-print("  pull opposite ways and neither is quantifiable from the published")
-print("  record: the seven reads come from three figures, so they are not")
-print("  seven independent draws and the rank p is optimistic; against that, a")
-print("  shared axis-calibration error is common mode and cancels in the")
-print("  difference, so the shift is better determined than 4 mHz per read")
-print("  implies.  The defensible statement is that the null is disfavoured at")
-print("  roughly two sigma, and no more than that.")
+print("  act in opposite directions and neither can be quantified from")
+print("  the published record.  The seven reads come from three figures,")
+print("  so they are not seven independent draws and the rank p is")
+print("  optimistic.  A shared axis-calibration error is common mode and")
+print("  cancels in the difference, so the shift is better determined")
+print("  than 4 mHz per read implies.  The null is disfavored at about")
+print("  two sigma.")
 print()
 
-# --------------------------------------------------------------------------
-# (d) falsification table
-# --------------------------------------------------------------------------
+# --- (d) falsification table ---
 rule("(d)  FALSIFICATION TABLE")
 def verdict(c):
-    return "EXCLUDED" if c > 2 else ("marginal" if c > 1 else "NOT excluded")
+    return "excluded" if c > 2 else ("marginal" if c > 1 else "not excluded")
 
 
 tab = []
@@ -493,30 +442,28 @@ obs = "%+.0f to %+.0f mHz" % (1e3 * SHIFT_LO, 1e3 * SHIFT_HI)
 for name, pred, c in tab:
     print("  %-29s %-17s %-15s %.2f   %s" % (name, pred, obs, c, verdict(c)))
 print("  %-29s %-17s %-15s %.2f   %s"
-      % ("H_paper, 1.3e-5 to 1.8e-3",
+      % ("H_eff, 1.3e-5 to 1.8e-3",
          "%+.0f to %+.0f mHz" % (1e3 * SHIFT_LO, 1e3 * SHIFT_HI), obs, 0.0,
-         "consistent (target)"))
+         "consistent"))
 print()
 print("  miss is chi, the best-fit band miss in 4 mHz read uncertainties;")
-print("  EXCLUDED is set at 2 sigma.")
+print("  excluded means a miss above 2 sigma.")
 print()
 
-# --------------------------------------------------------------------------
-# where H_plain does get falsified
-# --------------------------------------------------------------------------
-rule("WHERE H_plain IS FALSIFIED: the N7E coincidence, not the traverse")
+# --- where H_plain is falsified: the N7E spacing ---
+rule("H_plain AGAINST THE N7E STAY-DECK SPACING")
 Q7_STAY, Q7_DECK = 0.005, 0.0005      # tabulation quanta, 2 dp and 3 dp
 SEP_OBS = abs(F7_STAY - F7_DECK)
 SEP_MAX = SEP_OBS + Q7_STAY + Q7_DECK
 F7 = 0.5 * (F7_STAY + F7_DECK)
 ZETA = (0.002, 0.005, 0.010)
 
-print("  N7E: m = 10.7 kg/m, L = 73.7 m -> M_s = %.0f kg, at essentially exact"
+print("  N7E: m = 10.7 kg/m, L = 73.7 m -> M_s = %.0f kg, at nearly exact"
       % M_S7)
 print("  tuning with a global mode that carries almost no motion where it")
-print("  anchors.  mu_eff = M_s phi_a^2 puts that ordinate near a node and the")
-print("  width at most half a per cent; H_plain cannot use the ordinate and")
-print("  must predict a wide split.  Deck modal mass is carried over the same")
+print("  anchors.  mu_eff = M_s phi_a^2 places the anchorage near a node, so")
+print("  the split is at most half a percent; H_plain ignores the ordinate and")
+print("  predicts a wide split.  The deck modal mass range is the same")
 print("  40 to 160 t, though this is a different global mode from the traverse.")
 print()
 print("  M_deck    mu_plain    s_plain (16-28 deg)   split at %.3f Hz" % F7)
@@ -534,47 +481,47 @@ print()
 
 rule("")
 print("  TEST 1  minimum separation of the hybrid pair.  Two veering branches")
-print("  can never approach closer than s f0, whatever the detuning, so the")
-print("  observed spacing of the stay line and the deck mode is a lower bound")
-print("  on the split that needs no knowledge of f_iso.")
+print("  cannot approach closer than s f0 at any detuning, so the observed")
+print("  spacing of the stay line and the deck mode is an upper bound on")
+print("  the split, independent of f_iso.")
 print()
-print("    observed  : stay %.3f Hz (Table 4.4, 2 dp) and deck mode %.3f Hz"
+print("    observed  : stay %.3f Hz (Kumar (2011) Table 4.4, 2 dp) and deck mode %.3f Hz"
       % (F7_STAY, F7_DECK))
-print("                (Table 5.6, 3 dp), separation %.1f mHz, at most %.1f mHz"
+print("                (Kumar (2011) Table 5.6, 3 dp), separation %.1f mHz, at most %.1f mHz"
       % (1e3 * SEP_OBS, 1e3 * SEP_MAX))
-print("                once tabulation quanta are spent in H_plain's favour")
+print("                with the tabulation rounding taken in H_plain's favor")
 print("    H_plain   : needs at least %.1f mHz (s = %.2f %% at %.3f Hz)"
       % (1e3 * s7_min * F7, 100 * s7_min, F7))
 s_paper7 = s_from_mu(6e-5, TH7[1])
-print("    H_paper   : mu_eff <= 6e-5 gives s <= %.2f %%, at least %.1f mHz."
+print("    H_eff     : mu_eff = 6e-5 gives s = %.2f %%, a separation of at least %.1f mHz."
       % (100 * s_paper7, 1e3 * s_paper7 * F7))
-print("                That is %.1f mHz ABOVE the nominal %.1f mHz separation,"
+print("                That is %.1f mHz above the nominal %.1f mHz separation,"
       % (1e3 * (s_paper7 * F7 - SEP_OBS), 1e3 * SEP_OBS))
-print("                so it is admitted only through the tabulation quantum,")
-print("                not comfortably.  Stated honestly: the record bounds")
-print("                the N7E split at %.1f mHz and cannot resolve H_paper"
+print("                so it is admitted only through the tabulation")
+print("                rounding.  The record bounds")
+print("                the N7E split at %.1f mHz and cannot distinguish H_eff"
       % (1e3 * SEP_MAX))
-print("                from zero coupling there.  It separates both from")
-print("                H_plain by a clear factor.")
+print("                from zero coupling there; both are separated from")
+print("                H_plain by the factor below.")
 print()
-print("    H_plain overshoots the largest separation the record allows by a")
-print("    factor %.1f, and by %.1f at the top of its own range.  Excluded."
+print("    H_plain exceeds the largest separation the record allows by a")
+print("    factor %.1f, and by %.1f at the top of its own range: excluded."
       % (s7_min * F7 / SEP_MAX, s7_max * F7 / SEP_MAX))
 print()
 
-print("  TEST 2  resolvability.  Appendix B: a dip exists only for")
-print("  s > 0.9717 zeta and a 3 dB dip a peak picker would act on needs")
+print("  TEST 2  resolvability.  A dip between the two peaks exists only for")
+print("  s > 0.9717 zeta, and a 3 dB dip, which a peak picker can act on, needs")
 print("  s > 2.280 zeta.  For H_plain's smallest N7E split, %.2f %%, to leave"
       % (100 * s7_min))
 print("  the single unsplit line the record shows, the stay damping would have")
 print("  to reach zeta > %.2f %% (no dip at all) or zeta > %.2f %% (no 3 dB dip)."
       % (100 * s7_min / 0.9717, 100 * s7_min / 2.280))
-print("  Measured stay damping runs zeta = %.1f to %.1f %%, so H_plain is out"
+print("  Measured stay damping is zeta = %.1f to %.1f %%, so H_plain misses"
       % (100 * min(ZETA), 100 * max(ZETA)))
 print("  by a factor %.1f to %.1f in damping on the strict criterion."
       % (s7_min / 0.9717 / max(ZETA), s7_min / 0.9717 / min(ZETA)))
 print()
-print("  Read as a deck mass, for H_plain to hide the doublet:")
+print("  Deck modal mass H_plain needs for the doublet to stay unresolved:")
 print()
 print("  zeta     s allowed (3 dB)   mu required     M_deck required")
 print("  " + "-" * 62)
@@ -585,45 +532,45 @@ for z in ZETA:
 mu_req = mu_from_s(2.280 * max(ZETA), TH7[1])
 Mreq = M_S7 / mu_req / 1e3
 print()
-print("  At zeta = %.1f %%, generous for a stay, H_plain still needs %.0f t,"
+print("  At zeta = %.1f %%, high for a stay, H_plain needs %.0f t,"
       % (100 * max(ZETA), Mreq))
-print("  %.1f times the top of the carried range; at %.1f %% it needs %.0f t,"
+print("  %.1f times the top of the assumed range; at %.1f %% it needs %.0f t,"
       % (Mreq / (MDECK_HI / 1e3), 100 * ZETA[1],
          M_S7 / mu_from_s(2.280 * ZETA[1], TH7[1]) / 1e3))
-print("  %.0f times.  Test 2 therefore excludes H_plain for any plausible"
+print("  %.0f times.  Test 2 excludes H_plain for any plausible stay"
       % (M_S7 / mu_from_s(2.280 * ZETA[1], TH7[1]) / 1e3 / (MDECK_HI / 1e3)))
-print("  damping, but its margin depends on an assumed zeta, whereas Test 1")
-print("  does not.  Test 1 is the one to quote.")
+print("  damping, but its margin depends on the assumed zeta; Test 1")
+print("  does not depend on damping.")
 print()
 
-print("  AGAINST US, and it belongs in the paper.  The N7E frequency ANOMALY")
-print("  does not discriminate.  The stay's fundamental sits %.1f %% above the"
+print("  The N7E frequency anomaly does not distinguish the two")
+print("  hypotheses.  The stay fundamental is %.1f %% above the"
       % (100 * (F7_STAY / 1.1035 - 1)))
-print("  string-formula frequency of the measured pull, and near exact tuning")
+print("  string-formula frequency of the measured tension, and near exact tuning")
 print("  H_plain displaces the upper branch by s/2 = %.1f to %.1f %%, which"
       % (50 * s7_min, 50 * s7_max))
-print("  brackets the observed anomaly about as well as anything else does.")
-print("  H_plain is killed by the SPACING of the pair and the absence of a")
-print("  doublet, not by the position of the line.  A referee who checks only")
-print("  the anomaly will find the rival survives, so the spacing argument has")
-print("  to be the one stated.")
+print("  brackets the observed anomaly.")
+print("  H_plain is excluded by the spacing of the pair and the absence of a")
+print("  doublet, not by the position of the line.  The anomaly alone is")
+print("  consistent with H_plain, so the spacing test is the")
+print("  discriminating one.")
 print()
-print("  ALSO CIRCULAR, and not used above: the structural estimate")
+print("  Not used above: the structural estimate")
 print("  mu_eff = 1.3e-5 to 1.8e-3 is disjoint from H_plain = 5.1e-3 to")
 print("  2.0e-2, but it is built from the anchorage ordinate, which is the")
-print("  very thing H_plain denies.  Quoting that disjointness as evidence")
-print("  would assume the conclusion.  Only measurements that do not use the")
-print("  ordinate -- the traverse bound and the N7E spacing -- can arbitrate.")
+print("  quantity H_plain omits, so comparing the two would assume the")
+print("  result.  Only measurements that do not use the ordinate (the")
+print("  traverse bound and the N7E spacing) can decide between them.")
 print()
 
-# --------------------------------------------------------------------------
+# --- output ---
 out = os.path.join(ROOT, "data", "falsify_traverse.csv")
 out2 = os.path.join(ROOT, "data", "falsify_traverse_thresholds.csv")
 apl.to_csv(out, index=False)
 bnd.to_csv(out2, index=False)
 
 rule("SUMMARY")
-print("  1. The traverse does NOT falsify H_plain over 40 to 160 t.  Its best")
+print("  1. The traverse does not exclude H_plain over 40 to 160 t.  Its best")
 print("     fit, M_deck = %.0f t at theta = %.0f deg, reproduces both reads"
       % (Md_best / 1e3, th_best))
 print("     with a miss of %.2f read uncertainties, predicting a %+.1f mHz"
@@ -632,38 +579,38 @@ print("     shift against the %+.0f to %+.0f mHz observed.  The traverse"
       % (1e3 * SHIFT_LO, 1e3 * SHIFT_HI))
 print("     excludes H_plain only below %.0f to %.0f t at zero allowance and"
       % (m0.min(), m0.max()))
-print("     %.0f to %.0f t at one read uncertainty.  The measured and rival"
+print("     %.0f to %.0f t at one read uncertainty.  The measured and H_plain"
       % (m1.min(), m1.max()))
-print("     brackets genuinely overlap, on mu = %.1e to %.1e, so writing"
+print("     brackets overlap on mu = %.1e to %.1e, so the measured bracket"
       % (ov_lo, ov_hi))
-print("     that the bracket excludes the rival would be false.")
-print("  2. H_null is not excluded on magnitude either: %.2f sigma at the most"
+print("     does not exclude H_plain.")
+print("  2. H_null is not excluded on magnitude: %.2f sigma at the most"
       % zs.max())
-print("     favourable pair, %.2f on the band means.  It is disfavoured at"
+print("     favorable pair, %.2f on the band means.  It is disfavored at"
       % (abs(dm) / se))
-print("     %.2f sigma by the SIGN, through a rank test on seven reads taken"
+print("     %.2f sigma by the sign, through a rank test on seven reads taken"
       % norm.isf(p_rank))
-print("     from three figures and therefore not independent.  Marginal, and")
-print("     to be reported as marginal.")
-print("  3. What the traverse does establish, and all that should be claimed:")
-print("     the sign, which needs no calibration, and a two-sided bound")
+print("     from three figures and therefore not independent, so the result")
+print("     is marginal.")
+print("  3. The traverse establishes the sign, which needs no calibration,")
+print("     and a two-sided bound")
 print("     s = %.2f to %.2f %% (linear) or %.2f to %.2f %% (exact 2-DOF),"
       % (100 * meas.s_linear.min(), 100 * meas.s_linear.max(),
          100 * meas.s_exact.min(), 100 * meas.s_exact.max()))
-print("     hence mu_eff < %.1e.  That upper bound is the falsifying content:"
+print("     hence mu_eff < %.1e.  Any hypothesis that predicts a wider split"
       % meas.mu_linear.max())
-print("     any rival predicting a wider split fails it.")
-print("  4. H_plain IS falsified, on the N7E coincidence in the same campaign.")
+print("     is inconsistent with this upper bound.")
+print("  4. H_plain is excluded by the N7E coincidence in the same record.")
 print("     The stay line and the deck mode sit %.1f mHz apart, at most %.1f"
       % (1e3 * SEP_OBS, 1e3 * SEP_MAX))
 print("     mHz, while two veering branches cannot approach closer than s f0;")
-print("     H_plain requires at least %.1f mHz, over by a factor %.1f.  This"
+print("     H_plain requires at least %.1f mHz, a factor %.1f too large.  This"
       % (1e3 * s7_min * F7, s7_min * F7 / SEP_MAX))
-print("     needs no f_iso, no damping and no anchorage ordinate.")
-print("  5. Recommended framing: the traverse fixes the SIGN and BOUNDS the")
-print("     width; the N7E spacing DISCRIMINATES the group.  Presenting the")
-print("     traverse itself as excluding the plain ratio would not survive a")
-print("     referee who does the arithmetic above.")
+print("     test needs no f_iso, no damping and no anchorage ordinate.")
+print("  5. The traverse gives the sign and a bound on the")
+print("     width; the N7E spacing distinguishes mu_eff from the plain mass")
+print("     ratio.  The traverse alone does not exclude the plain mass ratio")
+print("     (item 1).")
 print()
 print("  wrote %s" % out)
 print("  wrote %s" % out2)

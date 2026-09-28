@@ -1,13 +1,11 @@
 # -*- coding: utf-8 -*-
-"""The Aveiro circular footbridge (Rebelo et al. 2010) against the screen.
+"""Check the detuning screen against the Aveiro circular footbridge.
 
-Complementary field case to the Ponte del Mare: eight stays, all cable
-fundamentals measured during frequency-based tensioning control, global
-modes identified by EFDD/SSI. The screen uses measured frequencies only.
-Ground truth: the paper's own estimated-vs-design force comparison.
-
-Data: Rebelo, Julio, Varum, Costa, Experimental Techniques 34(4) 62-68,
-2010, Tables 1 and 3.
+For each of the eight stays, computes the detuning d between the measured
+cable fundamental and the nearest measured global frequency, and the
+departure of the estimated stay force from the design force. Data: Rebelo,
+Julio, Varum, Costa, Experimental Techniques 34(4) 62-68, 2010, Tables 1
+and 3. Writes data/aveiro.csv.
 
 Run:  python3 scripts/validate_aveiro.py
 """
@@ -15,9 +13,10 @@ import os
 import sys
 import numpy as np, pandas as pd, os
 
-# Table 1
-# Values transcribed from Rebelo et al. (2009) (Aveiro footbridge). They are not redistributed with
-# this code: they live in data/external/validate_aveiro_data.py (see README).
+# Values transcribed from Rebelo et al. (2009) (Aveiro footbridge): stay data
+# (Table 1) and mean global frequencies (Table 3). They are not redistributed
+# with this code: they live in data/external/validate_aveiro_data.py
+# (see README).
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), "data", "external"))
 try:
@@ -27,7 +26,7 @@ except ImportError as exc:
     raise SystemExit("scripts/validate_aveiro.py needs values transcribed from "
                      "Rebelo et al. (2009) (Aveiro footbridge), which are not redistributed here. "
                      "See README, 'Third-party data'.") from exc
-# Table 3 (mean frequencies; strips are the mast anchor strips)
+# Global modes labeled "strip" are modes of the mast anchor strips.
 
 rows = []
 print("cable  f1 [Hz]  nearest global      d       |  T_est  T_des   diff")

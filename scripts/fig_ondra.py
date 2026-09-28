@@ -1,20 +1,11 @@
 # -*- coding: utf-8 -*-
-"""The laws against measurement: the beam-tendon rig of Ondra and Titurus.
+"""Closed form against the beam-tendon rig of Ondra and Titurus (2019).
 
-That rig is topologically a stay. A tensioned one-dimensional element is held
-at one end and attached at the other to a point of a flexible host that moves,
-with the anchorage motion perpendicular to the element axis, which is the
-theta = 0 corner of this study's geometry. Its tension is set by dead weight
-over a pulley, so it is independent of any frequency measurement, and stepping
-the weight drives the crossing through rather than inferring it.
-
-Panel (a) tests the closed form on three veering events at three stay mode
-orders. Plotting n*s removes mu_eff almost entirely, since it is near enough
-constant across the three, so what remains is the 1/n scaling on its own.
-
-Panel (b) tests the tension error. The rig cancels its own pulley friction:
-the tendon's orthogonal mode passes through the veering region unaffected and
-is measured at every load, so it serves as the isolated reference.
+Panel (a): measured and predicted veering width times mode order, n*s, for
+three veering events (a flat line is the 1/n scaling). Panel (b): tension
+error against relative detuning for the n = 1 and n = 2 events.
+Reads data/external/fig_ondra_data.py and data/ondra.csv; writes fig_ondra.png
+and fig_ondra.pdf to the figures directory OUT.
 
 Run:  python3 scripts/fig_ondra.py
 """
@@ -36,11 +27,11 @@ import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.lines import Line2D  # noqa: E402
 
 DATA = os.path.join(ROOT, "data")
-OUT = os.path.join(ROOT, "revision 1", "sources", "figures")
+OUT = os.environ.get("FIGURE_DIR", os.path.join(ROOT, "figures"))
 
-# the three measured veering events, from scripts/expt_2_check.py
-# Values transcribed from Ondra and Titurus (2019) (beam-tendon laboratory rig). They are not redistributed with
-# this code: they live in data/external/fig_ondra_data.py (see README).
+# The three measured veering events are transcribed from Ondra and Titurus
+# (2019). They are not redistributed with this code: they live in
+# data/external/fig_ondra_data.py (see README).
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), "data", "external"))
 try:
@@ -75,7 +66,7 @@ def main():
     F.clean(a1)
     a1.legend(loc="lower left", fontsize=9.0, labelspacing=0.24, frameon=False)
     F.panel(a1, "a", "the width, and the $1/n$ scaling")
-    # flat in n s is the scaling itself; the caption explains the plotting
+    # a flat n s line is the 1/n scaling
     F.note(a1, 0.52, 0.80, r"$s \propto 1/n$", fontsize=10.0, color="0.30")
 
     # ---- (b) the tension error against detuning --------------------------

@@ -1,42 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Main campaign over the (detuning, effective mass ratio) plane.
+"""Sampled designs over the (detuning, effective mass ratio) plane.
 
-The pilot established the mechanism and produced a closed form for the
-veering width at exact tuning.  This campaign asks the design question: over
-the whole plane, and over the property ranges of real cable-stayed bridges
-from footbridges to long spans, how large is the tension error of the
-isolated-cable inversion, and where is it tolerable.
-
-THE PREDICTED LAW.  Two modes approaching each other behave as a classical
-avoided crossing.  With the uncoupled stay frequency ``f_s``, the deck
-frequency it approaches ``f_d``, relative detuning ``d = (f_s - f_d)/f_s``
-and split at exact tuning ``s = (2/pi) cos(theta) sqrt(mu_eff)``, the
-coupled pair is
-
-    f_pm = (f_s + f_d)/2  pm  (1/2) sqrt(D^2 + S^2)
-
-so the stay-dominated branch is displaced from ``f_s`` by
-``(1/2)[sqrt(D^2+S^2) - |D|]``.  The incumbent formula takes tension as
-proportional to the square of frequency, so to leading order the TENSION
-ERROR is
-
-    eps = sqrt(d^2 + s^2) - |d|                                        (*)
-
-which gives ``eps = s`` at exact tuning and decays as ``s^2/(2|d|)`` far from
-it.  Inverting (*) for a tolerance ``tol`` gives the screening criterion
-
-    |d| >= (s^2 - tol^2) / (2 tol)                                    (**)
-
-Everything above is a prediction.  The campaign's job is to test it against
-the finite element model over a wide sample and report where it fails.
-
-Sampling constructs crossings rather than waiting for them: for each design
-a deck mode with real motion at the anchorage is chosen, a stay mode order
-and a target detuning are drawn, and the tension that realises that detuning
-is solved for.  Anchorages are never placed at a node of the targeted mode,
-which is the trap the pilot fell into.
-
-Writes data/campaign.csv.
+Draws designs from footbridge to long span, solves the coupled finite-element
+model at a target detuning d, and records the taut-string tension error beside
+the closed form eps = sqrt(d^2 + s^2) - |d|, s = (2/(n pi)) cos(theta)
+sqrt(mu_eff). Prints how the screen |d| >= (s^2 - tol^2) / (2 tol) sorts the
+designs. Writes data/campaign.csv.
 
 Run:  python3 scripts/run_campaign.py [nsamples] [nworkers]
 """
@@ -67,7 +36,8 @@ ND = NC = 40
 
 
 def deck_alone_modes(Ld, EId, md, nd, ia, k_ax, nmodes=12):
-    """Deck with the stay's axial spring, mass-normalised, amplitude at anchor."""
+    """Deck modes with the stay's axial spring: frequencies (Hz) and
+    mass-normalized ordinates at the anchorage."""
     Kd, Md = chain(Ld, nd, EId, md, 0.0)
     Kd = Kd.copy()
     Kd[2 * ia, 2 * ia] += k_ax
@@ -80,19 +50,12 @@ def deck_alone_modes(Ld, EId, md, nd, ia, k_ax, nmodes=12):
 
 
 def one_case(seed):
-    """One design.
+    """One sampled design: a dict of its properties and errors, or None.
 
-    Sampling note.  With ``m_c = rho A`` and ``T = sigma A`` the stay's
-    frequency is ``f_n = (n/2L) sqrt(sigma/rho)``, independent of area: it is
-    set by STRESS, not tension.  So the tension cannot be solved for to hit a
-    target detuning at fixed stress, and an earlier version of this function
-    tried to and diverged.  The stress is solved for instead, and the area is
-    then a free variable that sets ``mu_eff`` without moving the frequency,
-    which is exactly the independent driver the campaign needs.
-
-    Geometry is made consistent by construction: the anchorage position
-    follows from the stay length and inclination rather than being drawn and
-    then rejected.
+    With m_c = rho A and T = sigma A the stay frequency
+    f_n = (n/2L) sqrt(sigma/rho) does not depend on area, so the stress is
+    solved for to hit the target detuning and the area then sets mu_eff. The
+    anchorage position follows from the stay length and inclination.
     """
     rng = np.random.default_rng(seed)
 
@@ -123,7 +86,7 @@ def one_case(seed):
 
     fd, phia = deck_alone_modes(Ld, EId, md, ND, ia, k_ax)
 
-    # only modes with real motion at the anchorage can couple at all
+    # only modes with motion at the anchorage can couple
     ok = np.abs(phia) > 0.15 * np.abs(phia).max()
     if not ok.any():
         return None
@@ -165,7 +128,7 @@ def one_case(seed):
             bestm, best = m, jj
     f_coupled = float(f[best])
 
-    # ---- what the incumbent inversion returns ---------------------------
+    # ---- taut-string inversion -----------------------------------------
     T_hat = float(invert_string(np.array([f_coupled]), Lc, mc,
                                 np.array([n_stay]))[0])
     eps_measured = (T_hat - T) / T
@@ -173,7 +136,7 @@ def one_case(seed):
                                  np.array([n_stay]))[0])
     eps_control = (T_ctrl - T) / T
 
-    # ---- the predicted law ----------------------------------------------
+    # ---- closed-form prediction -----------------------------------------
     M_stay = mc * Lc / 2.0
     mu_eff = mu_effective(M_stay, phi_a)
     s = veering_split(mu_eff, theta, n_stay)
@@ -207,7 +170,7 @@ def main():
     print(f"  {len(d)} of {n} designs usable, written to "
           f"{DATA}/campaign.csv")
 
-    # only trust cases where the stay branch was cleanly identified
+    # keep designs with a cleanly matched stay branch and xi > 150
     g = d[(d.mac > 0.5) & (d.xi > 150)].copy()
     print(f"  {len(g)} with a cleanly matched stay branch (MAC > 0.5) and\n  xi > 150, above which the bending-stiffness bias of the formula is\n  below 1.1 % and does not mask the coupling")
 

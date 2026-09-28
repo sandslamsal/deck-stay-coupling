@@ -1,34 +1,13 @@
 # -*- coding: utf-8 -*-
-"""Revision 1, R1.2: what the screening criterion costs in false negatives
-and false positives when its inputs are uncertain.
+"""Miss and false-alarm rates of the screen |d| >= (s^2 - tol^2) / (2 tol)
+under input uncertainty, on the graded designs of the campaign.
 
-The criterion of Eq. (7), |d| >= (s^2 - tol^2) / (2 tol), is evaluated from
-two inputs that come from a design model: the deck mode's mass-normalised
-ordinate at the anchorage, phi_a, which enters the width s one to one, and
-the deck frequency, which sets the detuning d. Both are uncertain. This
-script perturbs them on the 421 graded designs of the campaign and scores
-the criterion against the coupled model's own error:
-
-    miss        the criterion passes a design whose true coupling error
-                exceeds the tolerance (a false negative, the unsafe kind)
-    false alarm the criterion flags a design whose true error is within
-                the tolerance (the costly kind)
-
-Both are reported as rates among the designs that are truly unsafe and
-truly safe respectively, so that a rate of 0.1 means one in ten. Two margins are
-scanned: a factor gamma on s (the screen evaluated with gamma * s) and a
-subtraction delta from |d| (the screen evaluated with |d| - delta), so that
-the manuscript can state the margin that holds the miss rate below one per
-cent at each level of input uncertainty, and which of the two inputs the
-margin must guard.
-
-Inputs perturbed per draw: phi_a by a normal error of coefficient of
-variation cov_phi (so s' = s |1 + e|), and the deck frequency by a normal
-error of standard deviation sig_f (so d' = d - (1 - d) e_f, from
-d = (f_s - f_d) / f_s).
-
-Writes data/screen_uncertainty.csv.
-
+Per draw, the anchorage ordinate phi_a has a normal error of coefficient of
+variation cov_phi (s' = s |1 + e|) and the deck frequency a normal error of
+standard deviation sig_f (d' = d - (1 - d) e_f). Margins scanned: a factor
+gamma on s and a subtraction delta from |d|. The miss rate is over the truly
+unsafe designs and the false-alarm rate over the truly safe ones.
+Reads data/campaign.csv; writes data/screen_uncertainty.csv.
 Run:  python3 scripts/run_screen_uncertainty.py
 """
 from __future__ import annotations
@@ -56,7 +35,7 @@ def main():
     g = c[(c.mac > 0.5) & (c.xi > 150)].reset_index(drop=True)
     s = g.s.to_numpy()
     d = g.d.to_numpy()
-    truth = np.abs(g.eps_coupling.to_numpy())      # the model's own error
+    truth = np.abs(g.eps_coupling.to_numpy())      # coupled-model error, the reference
     n = len(g)
     rng = np.random.default_rng(SEED)
     rows = []
@@ -87,7 +66,7 @@ def main():
     out = pd.DataFrame(rows)
     out.to_csv(os.path.join(DATA, "screen_uncertainty.csv"), index=False)
 
-    # the headline tables: tol = 2 %, no margin
+    # summary tables at tol = 2 %, no margin
     pd.set_option("display.width", 200)
     base = out[(out.tol == 0.02) & (out.gamma == 1.0) & (out.delta_d == 0.0)]
     print("\ntol = 2 %, no margin: miss rate among truly unsafe designs (rows cov_phi, cols sig_f)")

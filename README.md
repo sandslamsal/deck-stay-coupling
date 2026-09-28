@@ -1,5 +1,7 @@
 # Deck-stay modal coupling and the bias of vibration-based cable force identification on cable-stayed bridges
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23005585.svg)](https://doi.org/10.5281/zenodo.23005585)
+
 Code and data behind the results of the manuscript of the same title,
 currently under review.
 Authors: Sandesh Lamsal (AtkinsRéalis USA Inc.; University of Miami) and
@@ -27,7 +29,8 @@ Corresponding author: sandeshlamsal@miami.edu.
 
 Python 3.11 with numpy, scipy, pandas, matplotlib, joblib and openseespy.
 Run every script from the repository root, for example
-`python3 scripts/run_campaign.py`. The parametric study and the operational
+`python3 scripts/run_campaign.py`. Figures are written to `figures/`, or to
+the folder named by the environment variable `FIGURE_DIR`. The parametric study and the operational
 modal analysis take about an hour each; everything else runs in minutes.
 
 | Result | Script | Output |
@@ -35,6 +38,7 @@ modal analysis take about an hour each; everything else runs in minutes.
 | Model verification, Table 1 | `verify_cablefe.py`, `verify_coupling.py`, `cross_check_opensees.py`, `verify_cablefe2d.py` | printed, `verify_cablefe2d.csv` |
 | Veering of the frequency loci, Fig. 2 | `run_veering.py`, `fig_veering.py` | `veering_loci.csv`, `veering_branches.csv` |
 | Second (sag) route and pylon flexibility, Fig. 3 | `run_sag.py`, `run_campaign_sag.py`, `run_pylon.py`, `fig_sagpylon.py` | `sag*.csv`, `campaign_sag.csv`, `pylon.csv` |
+| Mass ratio of footbridges against long-span bridges | `run_pilot.py` | `pilot_census.csv`, `pilot_detuning.csv` |
 | Parametric study and error law, Table 2, Fig. 4 | `run_campaign.py`, `fig_collapse.py` | `campaign.csv` |
 | Irvine's parameter over the design set | `lam2_distribution.py` | `lam2_distribution.csv` |
 | Bending-corrected reading below the xi limit | `run_xi_combined.py` | `xi_combined*.csv` |
@@ -42,6 +46,7 @@ modal analysis take about an hour each; everything else runs in minutes.
 | Resolvability with unequal residues and damping; added finite element points | `run_resolve_sweep.py`, `run_damping_points.py` | `resolve_sweep.csv`, `damping_points.csv` |
 | Reading methods, Fig. 6 | `run_oma.py`, `oma_fdd.py`, `oma_ssi.py`, `simulate_records.py`, `fig_oma.py` | `oma*.csv` |
 | Identification methods, Tables 3 and 4, Fig. 8 | `run_identify.py`, `run_identify2.py`, `run_sensitivity.py`, `fig_identify.py` | `identify*.csv`, `sensitivity.csv` |
+| Error of the wrong branch near a crossing | `run_twosided.py` | `twosided.csv` |
 | Single-sensor check for mode mis-assignment | `run_misassign_rule.py` | `misassign_rule.csv` |
 | Damping asymmetry and identifiability | `run_dampingasym.py`, `crb_analytic.py`, `crb_montecarlo.py` | `dampingasym.csv`, `crb_*.csv` |
 | Screening criterion under input uncertainty | `run_screen_uncertainty.py` | `screen_uncertainty.csv` |
@@ -70,6 +75,10 @@ To repeat these analyses, create `data/external/<script>_data.py` holding the
 named tables each script imports (the import line at the top of each script
 lists them), transcribed from the source. The derived files those scripts
 write into `data/` are likewise not included.
+
+## Citation
+
+Please cite the archived code and data: https://doi.org/10.5281/zenodo.23005585.
 
 ## License
 

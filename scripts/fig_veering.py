@@ -1,24 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Figure: the mechanism, on one bridge, as the stay tension is varied.
+"""Figure: veering on one bridge as the stay tension is varied.
 
-Everything in this study rests on one claim about the physics: near a
-crossing there is no isolated stay mode to measure.  This figure shows that
-happening.
-
-  (a)  frequency loci against stay tension.  The uncoupled stay and deck
-       frequencies cross; the coupled ones do not.  They approach, repel and
-       exchange character, which is what frequency loci veering means.
-  (b)  the fraction of modal kinetic energy carried by the stay, for the two
-       branches.  Away from the crossing one branch is the stay and the other
-       is the deck.  At the crossing both are half and half, so the question
-       "which peak is the stay mode" has no answer there.
-  (c)  the consequence: the tension error the isolated-cable inversion
-       incurs, computed on this bridge, with the closed form drawn through
-       it.  The first figure gives the law in the abstract; this is one real
-       instance of it.
-
-Reads the CSVs written by scripts/run_veering.py, which is separated out
-because the computation costs minutes and the figure needs iterating.
+(a) coupled and uncoupled frequency loci against stay tension;
+(b) stay share of modal kinetic energy on the two branches;
+(c) tension error of the isolated-cable inversion, with the closed form.
+Reads data/veering_loci.csv and data/veering_branches.csv (written by
+scripts/run_veering.py); writes fig_veering.png and fig_veering.pdf to OUT.
 
 Run:  python3 scripts/fig_veering.py
 """
@@ -40,7 +27,7 @@ import figstyle as F  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.lines import Line2D  # noqa: E402
 
-OUT = os.path.join(ROOT, "revision 1", "sources", "figures")
+OUT = os.environ.get("FIGURE_DIR", os.path.join(ROOT, "figures"))
 DATA = os.path.join(ROOT, "data")
 
 
@@ -52,8 +39,7 @@ def main():
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(F.FIG_W, 2.5))
 
     # ---- (a) loci --------------------------------------------------------
-    # Filled against open marks, not colour alone, so the two branches stay
-    # separable in a greyscale print.
+    # filled and open marks keep the two branches distinct in grayscale
     stay = loci[loci.stay_frac > 0.5]
     deck = loci[loci.stay_frac <= 0.5]
     ax1.plot(stay['T'] / 1e3, stay.f, ls='none', marker='o', ms=2.4,

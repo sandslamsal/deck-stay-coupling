@@ -1,219 +1,15 @@
 # -*- coding: utf-8 -*-
-"""Frequency domain decomposition through a deck-stay crossing.
+"""Frequency domain decomposition (FDD) of records through a deck-stay crossing.
 
-The manuscript states, without evidence, that a method which fits modes
-rather than picking maxima "can separate a pair the spectrum shows as a
-single peak, in which case the branch law returns in full".  This script
-tests that statement for the decomposition half of it.  Four estimators are
-run on the same synthetic records:
+Runs four methods on the same synthetic stay and deck records from
+scripts/simulate_records.py: peak picking, half-power damping, FDD of the
+cross-spectral matrix G(f) = A(f) Gamma A(f)^H (A[p,j] = phi_j(p) H_j(f),
+Gamma the modal force matrix), and enhanced FDD (EFDD). Also studies the
+exact cross-spectrum, the stay-to-deck load ratio, sensor placement, mode
+shapes and record length. Writes data/oma_fdd_*.csv.
 
-  1. PEAK PICKING          the baseline the manuscript already assumes: the
-                           tallest maximum of the Welch auto-spectrum of the
-                           stay accelerometer
-  2. HALF-POWER            the same maximum, plus the damping a practitioner
-                           reads from the -3 dB width of that peak
-  3. FDD                   singular value decomposition of the cross-power
-                           spectral density matrix of stay and deck sensors,
-                           with peaks read from the singular value curves
-  4. EFDD                  the singular value bell around each peak,
-                           selected by modal assurance criterion against the
-                           peak singular vector, inverse transformed to a
-                           correlation function and fitted for frequency and
-                           damping
-
-Nothing here re-derives the physics.  The records come from
-``scripts/simulate_records.py`` unchanged, the bridge and the damping
-calibration from ``scripts/run_damping.py``, the branch and merged-peak laws
-from ``scripts/run_merged.py``, and the baseline peak picker is
-``simulate_records.refine_peaks``, which that module already verifies against
-the analytic spectrum.
-
-WHY FDD IS THE RIGHT TEST
--------------------------
-Frequency domain decomposition is the standard answer to closely spaced
-modes in output-only modal analysis.  Its claim is structural rather than
-statistical: if the modal coordinates are uncorrelated, the response
-cross-spectral matrix at frequency f is
-
-    G(f) = sum_j  g_j |H_j(f)|^2  psi_j psi_j^H                        (1)
-
-a sum of rank-one terms, one per mode.  Two modes therefore make G rank two,
-the first singular value tracks whichever mode is larger and the second
-tracks the other, and a pair the auto-spectrum shows as one peak is supposed
-to appear as two features across the two singular value curves.  That is the
-claim being tested.
-
-WHAT BREAKS IT HERE, AND IT IS NOT THE SENSORS
-----------------------------------------------
-For a stationary load with modal force cross-spectral matrix Gamma, the
-exact output cross-spectral matrix is
-
-    G(f) = A(f) Gamma A(f)^H,   A[p,j] = phi_j(p) H_j(f)               (2)
-
-and (1) is the special case Gamma diagonal.  At a veering crossing the two
-hybrid modes are, to leading order, the sum and the difference of one stay
-mode and one deck mode,
-
-    psi_+- = (u_s +- u_d) / sqrt(2)
-
-so any load field p produces modal forces (p.u_s +- p.u_d)/sqrt(2) whose
-correlation coefficient is
-
-    corr = (sigma_s^2 - sigma_d^2) / (sigma_s^2 + sigma_d^2)           (3)
-
-with sigma_s, sigma_d the root-mean-square generalised forces on the two
-constituent modes.  The correlation is +-1 at both extremes of the load
-balance and vanishes only where the two are equal.  A stay carries a few
-kilogrammes per metre against a deck's tonne, so a spatially uniform load
-intensity drives the stay mode far harder, Gamma is near rank one, G is near
-rank one whatever the sensors do, and the second singular value has nothing
-to carry.  This script measures that correlation, measures the second
-singular value it produces, and sweeps the load balance to find where FDD
-would in fact work.
-
-The competing explanation, that two sensors simply cannot tell the two
-hybrid modes apart, is measured too: the modal assurance criterion between
-the two true mode shapes restricted to the sensor set is reported beside the
-force correlation, and a positive control with the same frequencies, damping
-and mode shapes but uncorrelated modal forces separates the two causes.
-
-WHAT A SINGLE CHANNEL DOES
---------------------------
-With one sensor G is one by one, its singular value decomposition returns
-the auto-spectrum itself and a unit singular vector, and there is no second
-singular value at all.  FDD then IS peak picking, bit for bit, and this is
-checked rather than argued.  Single-channel stay measurement is the practice
-the study is about, so the honest statement is that FDD is not available to
-it without a second sensor somewhere on the structure.
-
-PROCESSING, AND THE CHOICES IT NEEDS
-------------------------------------
-``nperseg = 8192`` at ``fs = 100 Hz`` gives a bin of 0.0122 Hz, a sixth of
-the 0.0777 Hz split of the worked bridge, with 26 Hann segments at 75 per
-cent overlap in a 600 s record.  Those 26 are worth 13.8 independent
-averages, not 26, and the difference is not cosmetic: it sets the
-prominence floor that decides whether a shoulder is called a peak, and
-:func:`effective_averages` computes it rather than assuming it.  Overlap
-beyond 50 per cent buys almost nothing, 12.4 independent averages at 50 per
-cent against 13.8 at 75 and 13.6 at 87.5.  Resolution and
-variance pull against each other and the trade is stated with every result:
-the number of bins across a half-power bandwidth is reported for every case,
-and a case with fewer than about three is resolution limited rather than
-method limited.  A supplementary run at 3600 s and ``nperseg = 32768``
-separates the two.
-
-Peaks are found by ``simulate_records.refine_peaks`` with a smoothing width
-of three bins, which is a data-driven choice that does not presuppose the
-damping, and a prominence floor of four times the chi-squared scatter of the
-unsmoothed decibel curve.  The same procedure is applied to the analytic
-spectrum so that the comparison is like for like.
-
-WHAT WAS FOUND, IN ONE PLACE
-----------------------------
-Every number below is printed by this script and written to the files it
-names.  On the worked bridge at its crossing, T = 151.6 kN, split
-s = 2.34 per cent, pair at 3.2833 and 3.3609 Hz:
-
-* the second singular value never shows the second branch.  On the exact
-  cross-spectrum it carries exactly one peak, at 3.327 to 3.330 Hz, between
-  the two branches, at every damping from 0.2 to 3 per cent and at every
-  tension tried, and that peak stands 33 to 39 dB below the first singular
-  value's peak.  The two curves agree on how many peaks there are in every
-  one of the 15 exact cases and in 310 of the 315 records, so where the
-  auto-spectrum shows one peak the first singular value shows one too, and
-  the second adds a feature at the wrong frequency rather than the missing
-  one (``data/oma_fdd_exact.csv``, ``data/oma_fdd_sweep.csv``).
-
-* the reason is the excitation and not the sensors.  The two hybrid modes
-  take modal forces with correlation -0.988 at the crossing, because both
-  contain the same stay shape and a stay 180 times lighter per metre than
-  the deck takes far more generalised force from the same load field.  The
-  smaller eigenvalue of their 2 by 2 force matrix is 0.6 per cent of the
-  larger.  Forced to be exactly rank one, the cross-spectral matrix has
-  sv2/sv1 = 5e-16 at 2 sensors and 8e-16 at 7; with the bridge's own forces
-  it is 5.6e-3 at 2 sensors and 2.0e-3 at 7, so ADDING SENSORS MAKES IT
-  SMALLER.  The two hybrid shapes at the two sensors have MAC 0.86, so the
-  sensors do tell them apart.
-
-* the load field this uses is delta-correlated in space, which is the
-  favourable case.  A spatially coherent load, a uniform gust, gives modal
-  force correlation exactly -1.000000 and sv2/sv1 = 4e-16.
-
-* moving the second sensor cannot fix it.  A second accelerometer on the
-  same stay leaves the two hybrid shapes at MAC 0.996 and drops the sv2 peak
-  to 2.8e-5 of the sv1 peak, against 4.7e-4 for a deck sensor at the
-  anchorage (``data/oma_fdd_sensors.csv``).
-
-* the load balance that would satisfy FDD's premise exists and is narrow.
-  The force correlation passes through zero at a stay-to-deck load intensity
-  ratio of 0.0055, which is the mass ratio mc/md, and even there the sv2
-  peak is 20.5 dB down at 0.5 per cent damping and 14.7 dB down at 2 per
-  cent, and the first singular value still shows one peak in the merged
-  regime (``data/oma_fdd_loadbalance.csv``).
-
-* it is not a record-length, resolution or noise limit.  At 3600 s,
-  nperseg 32768, 43 to 65 bins across a half-power bandwidth and no sensor
-  noise at all, the merged cases still give one peak on the auto-spectrum
-  and one on the first singular value (``data/oma_fdd_long.csv``).
-
-* the positive control says the same.  A synthetic pair with the same
-  frequencies, damping and sensor shapes but INDEPENDENT modal forces still
-  gives one peak on both curves once the pair is merged, and the nearest
-  FDD feature to the upper branch is then 0.8 per cent low.
-
-* FDD returns the tension peak picking returns.  On the exact spectrum over
-  21 tensions the two agree to 0.0008 to 0.014 percentage points of tension,
-  and on 600 s records the median difference is 0.004 percentage points.
-  The first singular value is the argument of a maximum, so it obeys the
-  MERGED-PEAK law and not the branch law: root mean square difference from
-  the merged law 0.005 to 0.21 percentage points against 0.011 to 0.64 from
-  the branch law, the gap widening with damping.  Its worst error over the
-  tension sweep is 1.01, 1.04, 1.08, 0.86 and 0.55 times the branch value
-  at 0.2, 0.5, 1, 2 and 3 per cent damping, so it takes the same merged-peak
-  relief peak picking does (``data/oma_fdd_exactlaw.csv``).
-
-* the second singular value carries no tension at all.  Its single peak sits
-  within 0.3 per cent of the DECK mode's own frequency, which does not
-  depend on the stay tension, so over 140 to 165 kN it moves 0.0011 Hz while
-  the isolated stay frequency moves 0.273 Hz, and a tension read from it
-  runs from +8.6 to -7.8 per cent.
-
-* resolvability on a record is not the closed-form resolvability.  With 26
-  segments worth 14 independent averages the prominence floor is 4.7 dB, so
-  the 3 dB dip the closed form allows at u = 1.14 cannot be called: the
-  lowest u at which any of the 315 rows shows two peaks is 2.34.  At 3 per
-  cent damping the seed-to-seed scatter of the picked frequency is 0.5 per
-  cent, worth 1.1 percentage points of tension on one record, which is the
-  same size as the bias being looked for.
-
-* the shapes are not what fails.  The first singular vector at the surviving
-  peak matches its nearer true hybrid shape at MAC 0.96 to 1.00 at every
-  tension and damping tried, and EFDD's enhanced shape at 0.97 to 1.00,
-  while the second singular vector matches the nearer of the two at only
-  0.05 to 0.41.  FDD returns a good shape for the mode it sees and nothing
-  for the mode it does not (``data/oma_fdd_shapes.csv``).
-
-* the crossing announces itself in the DAMPING, not in the frequency.  At
-  the crossing the half-power damping is 1.45 and 1.54 times what the same
-  estimator returns on the same records far from it, at 2 and 3 per cent
-  damping, and EFDD's is 1.43 and 1.31 times.  Below 1 per cent, where the
-  pair resolves, neither inflates.
-
-VERIFICATION
-------------
-``python3 scripts/oma_fdd.py --verify`` runs the checks listed in
-``VERIFICATION_NOTES`` and writes ``data/oma_fdd_verify.csv``.  The two that
-matter most are [B], a synthetic pair with known frequencies, damping and
-mode shapes and genuinely uncorrelated modal forces, where FDD must succeed
-if it works at all, and [D], the Welch cross-spectral estimate of long
-noise-free bridge records against the exact cross-spectrum of the same
-model convolved with the Welch window kernel.
-
-Run:  python3 scripts/oma_fdd.py --verify
-      python3 scripts/oma_fdd.py --exact
-      python3 scripts/oma_fdd.py --sweep
-      python3 scripts/oma_fdd.py --extra
-      python3 scripts/oma_fdd.py --report      (re-report from the csv)
+Run:  python3 scripts/oma_fdd.py [--verify] [--exact] [--sweep] [--extra]
+      (no flag runs all; --report re-reports from data/oma_fdd_sweep.csv)
 """
 
 from __future__ import annotations
@@ -241,7 +37,7 @@ from simulate_records import (OVERSAMPLE, RecordSimulator,  # noqa: E402
 DATA = os.path.join(ROOT, "data")
 
 NPERSEG = 8192                   # 0.0122 Hz at fs = 100 Hz
-OVERLAP_FRAC = 0.75              # 26 segments worth 13.8 independent
+OVERLAP_FRAC = 0.75              # 600 s: 26 segments, 13.8 independent
 SMOOTH_BINS = 3                  # peak-picking smoothing, in bins
 MAC_MIN = 0.80                   # EFDD bell membership
 BAND = FBAND                     # 2.5 to 4.2 Hz, the band with the pair
@@ -259,12 +55,9 @@ def cpsd_welch(X, fs, nperseg=NPERSEG, overlap_frac=OVERLAP_FRAC,
 
     Returns ``(f, G, n_seg, k_eff)`` with ``G`` of shape ``(nf, m, m)``,
     Hermitian and positive semidefinite at every line, in the convention
-    ``G[p, q] = E[Y_p conj(Y_q)]``.  ``k_eff`` is the number of INDEPENDENT
-    averages the overlapped segments are worth, which is what every
-    prominence floor downstream is set from.  The diagonal is checked
-    against ``scipy.signal.welch`` and the off-diagonal against
-    ``scipy.signal.csd`` in the verification, so the scaling is not asserted
-    here but measured.
+    ``G[p, q] = E[Y_p conj(Y_q)]``.  ``k_eff`` is the number of independent
+    averages the overlapped segments are worth; prominence floors are set
+    from it.  Checked against ``scipy.signal.welch`` and ``csd`` in check [A].
     """
     X = np.atleast_2d(np.asarray(X, dtype=float))
     m, n = X.shape
@@ -295,19 +88,14 @@ def cpsd_welch(X, fs, nperseg=NPERSEG, overlap_frac=OVERLAP_FRAC,
 def effective_averages(win, step, n_seg):
     """Independent averages an overlapped Welch estimate is worth.
 
-    Overlapping segments share data, so ``n_seg`` is not the number of
-    independent looks and using it as one sets a peak-picking prominence
-    floor that is too low, which manufactures peaks.  For a Gaussian process
-    the correlation between the periodograms of two segments offset by
-    ``m`` steps is
+    Overlapping segments share data, so ``n_seg`` overstates the independent
+    averages.  For a Gaussian process the periodograms of two segments
+    offset by ``m`` steps of ``S`` samples have correlation
 
         rho(m) = |sum_n w(n) w(n + m S)|^2 / (sum_n w(n)^2)^2
 
-    and the variance of the average of ``K`` of them is
-    ``[K + 2 sum_m (K - m) rho(m)] / K^2``, so the estimate is worth
-    ``K^2 / [K + 2 sum_m (K - m) rho(m)]`` independent averages.  At
-    87.5 per cent Hann overlap this is 0.27 of the segment count, and the
-    difference decides whether a 2 dB feature is called a peak.
+    and the estimate is worth ``K^2 / [K + 2 sum_m (K - m) rho(m)]``
+    independent averages for ``K`` segments.
     """
     w = np.asarray(win, dtype=float)
     N, den = len(w), np.sum(w ** 2) ** 2
@@ -324,11 +112,9 @@ def effective_averages(win, step, n_seg):
 def sv_decomp(G):
     """Singular values and vectors of a Hermitian positive matrix stack.
 
-    ``G`` is Hermitian by construction, so the singular value decomposition
-    is its eigendecomposition and ``numpy.linalg.eigh`` is used, which
-    returns real eigenvalues and an orthonormal basis without the sign
-    ambiguity a general singular value routine carries.  Agreement with
-    ``numpy.linalg.svd`` is checked in the verification.
+    ``G`` is Hermitian, so its singular value decomposition is its
+    eigendecomposition; ``numpy.linalg.eigh`` returns real eigenvalues and
+    an orthonormal basis.  Checked against ``numpy.linalg.svd`` in check [A].
 
     Returns ``(S, U)`` with ``S`` of shape ``(nf, m)`` in descending order
     and ``U`` of shape ``(nf, m, m)``, column ``c`` the vector of ``S[:, c]``.
@@ -357,9 +143,9 @@ def _modal_A(sim, fgrid, dofs, mode, modes=None):
     """Acceleration transfer matrix ``A[p, j]`` at the requested sensors.
 
     ``mode="cont"`` is the continuous system, ``mode="disc"`` the
-    zero-order-hold sections that ``lfilter`` actually runs, so that the
-    hold and every alias the internal sampling folds in are already inside
-    the answer.  The two mirror ``RecordSimulator._quad`` exactly.
+    zero-order-hold sections that ``lfilter`` runs, which include the hold
+    and the aliases of the internal sampling.  Both mirror
+    ``RecordSimulator._quad``.
     """
     f = np.asarray(fgrid, dtype=float)
     j = slice(None) if modes is None else np.asarray(modes, dtype=int)
@@ -383,8 +169,7 @@ def cpsd_model(sim, fgrid, dofs, mode="cont", modes=None):
     """One-sided cross-spectrum ``2 A Gamma A^H`` at unit load intensity.
 
     The diagonal reproduces ``RecordSimulator.psd_ideal`` for ``mode="cont"``
-    and ``psd_internal`` for ``mode="disc"``, which the verification asserts
-    to machine precision rather than trusting.
+    and ``psd_internal`` for ``mode="disc"`` (check [D]).
     """
     A = _modal_A(sim, fgrid, dofs, mode, modes)
     Gam = (sim.Gamma if modes is None
@@ -400,9 +185,8 @@ def cpsd_recorded(sim, fgrid, dofs, aa=True, decim=True):
     The internal cross-spectrum, weighted by the anti-alias filter and
     folded by the decimation.  A cross-spectrum of real signals satisfies
     ``G(-f) = conj(G(f))``, so an alias landing at a negative frequency
-    contributes its conjugate; a power spectrum has no such term, which is
-    why this cannot simply reuse ``psd_recorded``.  The diagonal is checked
-    against ``psd_recorded`` in the verification.
+    contributes its conjugate.  The diagonal is checked against
+    ``psd_recorded`` in check [D].
     """
     f = np.asarray(fgrid, dtype=float)
     dofs = np.asarray(dofs, dtype=int)
@@ -429,11 +213,9 @@ def cpsd_recorded(sim, fgrid, dofs, aa=True, decim=True):
 def welch_kernel(nperseg, fs, window="hann", os_fine=16, half_bins=96):
     """The kernel a Welch estimate convolves the true spectrum with.
 
-    ``|W(f)|^2`` normalised to unit area on a grid ``os_fine`` times finer
-    than the bin.  Returned separately from any spectrum so that the same
-    kernel can be applied to a matrix of cross-spectra and to an analytic
-    single-mode curve, which is what makes the estimator bias in check [F]
-    a prediction rather than a fitted correction.
+    ``|W(f)|^2`` normalized to unit area on a grid ``os_fine`` times finer
+    than the bin, so it can be applied to cross-spectral matrices and to
+    analytic single-mode curves alike.  Returns ``(K, dfine)``.
     """
     df = fs / nperseg
     dfine = df / os_fine
@@ -449,11 +231,9 @@ def expected_welch_cpsd(sim, fbins, dofs, nperseg=NPERSEG, window="hann",
                         os_fine=16, half_bins=96):
     """Expected Welch cross-spectrum: the exact one, smeared by the window.
 
-    A Welch estimate of a resonance a few bins wide estimates the true
-    spectrum convolved with ``|W(f)|^2`` normalised to unit area, not the
-    true spectrum.  The smearing is linear, so it applies entry by entry to
-    a cross-spectral matrix, real and imaginary parts alike.  Comparing a
-    Welch estimate with an unsmeared prediction measures the window.
+    A Welch estimate converges to the true spectrum convolved with
+    ``|W(f)|^2`` normalized to unit area.  The smearing is linear, so it is
+    applied entry by entry to the matrix, real and imaginary parts alike.
     """
     fbins = np.asarray(fbins, dtype=float)
     dofs = np.asarray(dofs, dtype=int)
@@ -479,7 +259,7 @@ def expected_welch_cpsd(sim, fbins, dofs, nperseg=NPERSEG, window="hann",
 
 
 # ===========================================================================
-# the four estimators
+# the four methods
 # ===========================================================================
 
 def _smooth_db(f, P, half_width_hz):
@@ -492,10 +272,8 @@ def _smooth_db(f, P, half_width_hz):
 def pick_curve(f, P, n_seg, half_width_hz, n_sigma=4.0):
     """Peaks of one spectral curve, with heights, in a stated band.
 
-    Frequencies come from ``simulate_records.refine_peaks`` unchanged, so
-    the baseline picker here is the one that module already verified against
-    the analytic spectrum.  Heights are read off the same smoothed decibel
-    curve at the refined frequencies.
+    Frequencies come from ``simulate_records.refine_peaks``; heights are
+    read off the same smoothed decibel curve at those frequencies.
     """
     fp, prom = refine_peaks(f, P, n_seg, half_width_hz, n_sigma=n_sigma)
     sm, _ = _smooth_db(f, P, half_width_hz)
@@ -518,19 +296,12 @@ def peak_pick(f, P, n_seg, half_width_hz, band=BAND):
 def half_power(f, P, band=BAND, refine=True, smooth_bins=SMOOTH_BINS):
     """Frequency and damping from the -3 dB width of the tallest peak.
 
-    A power spectral density is already a squared magnitude, so the
-    half-power points are where the density falls to half its maximum, and
-    ``zeta = (f2 - f1) / (2 f0)``.
-
-    The width is measured on the density smoothed over ``smooth_bins``
-    lines, which is what a practitioner does and what the method needs: a
-    Welch density is chi-squared about its mean with a scatter of about
-    27 per cent per bin here, so on the raw curve the first line that
-    happens to fall below half the maximum arrives early and the width comes
-    out about a third too small.  Smoothing is arithmetic on the density,
-    not on its logarithm, because the arithmetic mean of a chi-squared
-    variable is unbiased and the geometric mean is not.  The residual bias
-    the smoothing itself leaves is measured in check [F].
+    The half-power points are where the density falls to half its maximum,
+    and ``zeta = (f2 - f1) / (2 f0)``.  The width is measured on the density
+    smoothed over ``smooth_bins`` lines, because the Welch scatter (about
+    27 % per bin here) makes the raw-curve width about a third too small.
+    Smoothing is on the density, not its logarithm, since the arithmetic
+    mean of a chi-squared variable is unbiased.
     """
     m = np.where((f >= band[0]) & (f <= band[1]))[0]
     fb = f[m]
@@ -580,9 +351,8 @@ def fdd(f, S, U, n_seg, half_width_hz, band=BAND, n_sv=2):
     out["sv2_over_sv1_max"] = (float(np.max(S[m, 1] / np.maximum(S[m, 0],
                                                                 1e-300)))
                                if S.shape[1] > 1 else 0.0)
-    # what an analyst reads off the plot: the height of the sv2 hump against
-    # the height of the sv1 peak, which is not the same as the largest
-    # pointwise ratio and is the honest measure of whether sv2 shows a mode
+    # sv2 peak height over sv1 peak height, as read off a plot; this differs
+    # from the largest pointwise ratio above
     out["sv2_peak_over_sv1_peak"] = (float(S[m, 1].max() / S[m, 0].max())
                                      if S.shape[1] > 1 else 0.0)
     return out
@@ -591,36 +361,24 @@ def fdd(f, S, U, n_seg, half_width_hz, band=BAND, n_sv=2):
 def efdd(f, S, U, i_peak, which=0, mac_min=MAC_MIN, fs=None, nperseg=None,
          lo_frac=0.20, hi_frac=0.95, min_bins=5, min_extrema=6,
          db_floor=20.0, rise_db=2.0, smooth_bins=SMOOTH_BINS):
-    """The enhanced step: an SDOF bell, its correlation function, a fit.
+    """EFDD: an SDOF bell, its correlation function, and a fit.
 
-    The bell is grown outward from the peak line while three conditions
-    hold, and which of them stops it is recorded, because it says what
-    limited the estimate:
+    The bell grows outward from the peak line until one of these stops it
+    (recorded in ``stop_lo`` and ``stop_hi``):
 
-      ``mac``     no singular vector at that line still matches the peak
-                  vector to ``mac_min``.  The match is allowed to jump
-                  between singular values, which is the standard refinement
-                  and matters here: where two singular value curves veer
-                  they exchange their vectors, so a bell locked to index
-                  zero would be cut in half at exactly the frequency where
-                  the pair is interesting.
-      ``valley``  the curve has risen ``rise_db`` above the lowest point
-                  reached so far, so the bell has passed the trough between
-                  this resonance and the next, and the bell is trimmed back
-                  to that trough.  Without this bound a two-channel bell
-                  runs across the whole band, takes in the neighbouring mode
-                  and returns one merged estimate with several times the
-                  true damping.  The margin is needed because a Welch
-                  singular value is chi-squared about its mean and a bare
-                  "the curve turned up" test fires on the first upward
-                  wiggle, which cut the bell to seven lines and halved the
-                  damping in an early version of this function.
+      ``mac``     no singular vector at that line matches the peak vector to
+                  ``mac_min``; the match may jump between singular values,
+                  since veering curves exchange their vectors.
+      ``valley``  the curve has risen ``rise_db`` above its lowest point so
+                  far, so the bell has passed the trough to the next mode;
+                  it is trimmed back to the trough.  The margin keeps Welch
+                  scatter from stopping the bell early.
       ``level``   the curve has fallen ``db_floor`` below the peak.
 
-    The bell is inverse transformed to a correlation function, the frequency
-    comes from a regression of the extremum times on the extremum index and
-    the damping from a regression of the log envelope on time, which is the
-    logarithmic decrement written as a least squares fit.
+    The bell is inverse transformed to a correlation function.  Frequency
+    comes from a regression of extremum times on extremum index, damping
+    from a least squares fit of the log envelope on time (logarithmic
+    decrement).
     """
     nf, m = S.shape
     u_ref = U[i_peak, :, which]
@@ -740,17 +498,12 @@ def efdd(f, S, U, i_peak, which=0, mac_min=MAC_MIN, fs=None, nperseg=None,
 class ModalTruth:
     """Records from a modal model with stated frequencies, damping, shapes.
 
-    The point of this class is that its answer is not computed, it is
-    imposed: the frequencies, the damping ratios, the mode shapes at the
-    sensors and the modal force cross-spectral matrix are all inputs, and
-    the exact response cross-spectrum ``2 A Gamma A^H`` follows in closed
-    form.  Any estimator can therefore be scored against a truth that owes
-    nothing to the finite element model.
-
-    The chain is the one ``simulate_records`` uses and for the same reasons:
-    exact zero-order-hold second-order sections, eightfold oversampling, a
-    linear-phase Kaiser anti-alias filter at 0.4 fs, decimation, then white
-    sensor noise.
+    Frequencies, damping ratios, sensor mode shapes (m, nm) and the modal
+    force matrix ``Gamma`` are inputs, so the exact response cross-spectrum
+    ``2 A Gamma A^H`` is known in closed form.  The measurement chain is the
+    one ``simulate_records`` uses: exact zero-order-hold second-order
+    sections, eightfold oversampling, a Kaiser anti-alias filter at 0.4 fs,
+    decimation, then white sensor noise.
     """
 
     def __init__(self, freqs, zetas, shapes, Gamma=None, fs=100.0,
@@ -804,6 +557,7 @@ class ModalTruth:
         return 2.0 * (B @ np.conj(np.swapaxes(A, -1, -2)))
 
     def record(self, duration=600.0, seed=0, snr_db=None, burn=120.0):
+        """Time vector and (m, n) record; ``snr_db=None`` adds no noise."""
         nkeep = int(round(duration * self.fs))
         pad = len(self.aa_taps) // 2 + self.oversample
         nburn = int(round(burn * self.fs_int))
@@ -826,18 +580,18 @@ class ModalTruth:
 
 
 # ===========================================================================
-# helpers tying the estimators to the bridge
+# helpers tying the methods to the bridge
 # ===========================================================================
 
 def string_tension(f, bridge=None, n=1):
-    """The incumbent inversion, one estimate from one frequency."""
+    """Taut-string tension from one frequency (isolated-cable inversion)."""
     b = BRIDGE if bridge is None else bridge
     return float(invert_string(np.array([f]), b["Lc"], b["mc"],
                                np.array([n]))[0])
 
 
 def errors(f_hat, T_true, f_iso, bridge=None):
-    """Both error measures the study uses, in per cent."""
+    """Estimated tension, its error (%), and (f_hat/f_iso)^2 - 1 (%)."""
     if not np.isfinite(f_hat):
         return np.nan, np.nan, np.nan
     T_hat = string_tension(f_hat, bridge)
@@ -857,13 +611,9 @@ def extra_channel_record(sim, dof, duration, snr_db, seed,
                          noise_ref="per_channel", quantise=True):
     """A record whose second channel sits at ``dof`` instead of the deck.
 
-    The modal forces are drawn before any sensor is touched and the sensor
-    noise is drawn from the same generator at the same shape, so the stay
-    channel of this record is bit identical to the stay channel of
-    :func:`two_channel_record` at the same seed.  That identity is asserted
-    in the verification, and it is what lets channels from separate calls be
-    stacked into one consistent multi-sensor record without reimplementing
-    the measurement chain.
+    The stay channel is bit identical to that of :func:`two_channel_record`
+    at the same seed (check [E]), so channels from separate calls can
+    be stacked into one multi-sensor record.
     """
     old = sim.dofs
     sim.dofs = np.array([sim.dof_stay, int(dof)])
@@ -876,7 +626,7 @@ def extra_channel_record(sim, dof, duration, snr_db, seed,
 
 
 def pair_geometry(sim):
-    """Everything about the pair that explains what FDD can and cannot do."""
+    """Force correlation, force-matrix eigenvalue ratio and MAC of the pair."""
     i, j = sim.pair_idx
     G = sim.Gamma
     corr = float(G[i, j] / np.sqrt(G[i, i] * G[j, j]))
@@ -892,13 +642,13 @@ def pair_geometry(sim):
 
 
 VERIFICATION_NOTES = """
-[A] the cross-spectral estimator: diagonal against scipy.signal.welch, off
+[A] the cross-spectral matrix: diagonal against scipy.signal.welch, off
     diagonal against scipy.signal.csd, and the singular value decomposition
     against numpy.linalg.svd
 [B] a synthetic modal truth with stated frequencies, damping, mode shapes
-    and UNCORRELATED modal forces: FDD, EFDD, half power and peak picking
+    and uncorrelated modal forces: FDD, EFDD, half power and peak picking
     against the imposed answer, for a separated triple and for a pair as
-    close as the worked bridge's
+    close as the example bridge's
 [C] one channel: the singular value equals the auto-spectrum and FDD
     reduces to peak picking, bit for bit
 [D] the exact model cross-spectrum: diagonal against
@@ -908,14 +658,13 @@ VERIFICATION_NOTES = """
 [E] the multi-channel construction: the stay channel is bit identical
     across calls at the same seed
 [F] half power on an exact Lorentzian, and EFDD on an exact analytic bell,
-    then on the same bell smeared by the Welch kernel, which predicts the
+    then on the same bell convolved with the Welch kernel, which predicts the
     resolution bias of check [G] without a Monte Carlo
-[G] a SINGLE isolated mode at the sweep's own processing settings, which
-    measures what each estimator does when there is no crossing at all and
-    is the baseline every merged case has to be read against
-[H] the rank argument: modal forces forced to rank one give a
-    cross-spectral matrix of rank one at every line, for two sensors and
-    for seven, and a spatially coherent load does the same
+[G] a single isolated mode at the processing settings of the sweep: the
+    error of each method with no crossing, the baseline for the merged cases
+[H] rank one: modal forces set to rank one give a cross-spectral matrix
+    of rank one at every line, for two sensors and for seven, and a
+    spatially coherent load does the same
 """
 
 
@@ -936,7 +685,7 @@ def verify(args):
     print("FDD / EFDD VERIFICATION")
     print("=" * 74)
 
-    # -- [A] estimator plumbing -------------------------------------------
+    # -- [A] method plumbing -------------------------------------------
     rng = np.random.default_rng(0)
     n = 200000
     x = rng.standard_normal(n)
@@ -960,7 +709,7 @@ def verify(args):
     esv = float(np.max(np.abs(S - Ssvd)) / S.max())
     her = float(np.max(np.abs(G - np.conj(np.swapaxes(G, -1, -2))))
                 / np.abs(G).max())
-    print("\n[A] cross-spectral estimator, %d segments of 4096" % nseg)
+    print("\n[A] cross-spectral matrix, %d segments of 4096" % nseg)
     print("    diag vs scipy.signal.welch : %.2e , %.2e  of band peak"
           % (e00, e11))
     print("    off  vs scipy.signal.csd   : %.2e  (convention "
@@ -972,8 +721,8 @@ def verify(args):
 
     # -- [B] synthetic modal truth ----------------------------------------
     print("\n[B] synthetic modal truth: frequencies, damping, mode shapes and")
-    print("    modal force correlation are all IMPOSED, so the answer is")
-    print("    known and not computed")
+    print("    modal force correlation are imposed, so the exact answer is")
+    print("    known in advance")
     sim0 = RecordSimulator(T_TUNE, 0.005)
     i, j = sim0.pair_idx
     Psi2 = sim0.Phi[[sim0.dof_stay, sim0.dof_deck], :][:, [i, j]]
@@ -1022,7 +771,7 @@ def verify(args):
         print("      FDD sv2 peaks            : %s Hz"
               % np.round(np.sort(res["sv2"]["f"]), 5))
         print("      max sv2/sv1: exact %.3e, from the record %.3e ; "
-              "sv2 PEAK over sv1 PEAK: exact %.3e, record %.3e"
+              "sv2 peak over sv1 peak: exact %.3e, record %.3e"
               % (sv2_exact, res["sv2_over_sv1_max"], sv2pk_exact,
                  res["sv2_peak_over_sv1_peak"]))
         fb, Sb, Ub = res["f"], res["S"], res["U"]
@@ -1090,8 +839,8 @@ def verify(args):
           % (d, dr))
     print("    FDD peaks %s and peak-pick peaks %s are the same array: %s"
           % (np.round(np.sort(pk_fdd), 6), np.round(np.sort(pk_pp), 6), same))
-    print("    there is no second singular value, so the classical FDD "
-          "argument is unavailable to a single stay accelerometer")
+    print("    a single stay accelerometer gives no second singular value, "
+          "so FDD reduces to peak picking")
     add("C_single_channel", sv1_minus_psd=d, rel=dr, identical=same,
         n_sv=int(S1.shape[1]))
 
@@ -1140,7 +889,7 @@ def verify(args):
     w11 = Gw[mw, 1, 1].real / Gew[:, 1, 1].real
     w01 = np.abs(Gw[mw, 0, 1]) / np.abs(Gew[:, 0, 1])
     phw = np.angle(Gw[mw, 0, 1] * np.conj(Gew[:, 0, 1]))
-    kt = len(seeds) * nsegb * 0.53                 # 75 %% overlap, measured
+    kt = len(seeds) * nsegb * 0.53                 # 75 % overlap: 13.8 / 26
     print("    %d records of %.0f s, nperseg %d, 0.4-%.0f Hz, %d bins:"
           % (len(seeds), args.dur, nps, 0.39 * sim.fs, mw.sum()))
     coh = (np.abs(Gew[:, 0, 1]) ** 2
@@ -1150,7 +899,7 @@ def verify(args):
           " phase %.4f rad rms"
           % (w00.mean(), w00.std() / np.sqrt(mw.sum()), w11.mean(),
              w01.mean(), np.sqrt((phw ** 2).mean())))
-    print("      the wideband cross figure is the known finite-average bias "
+    print("      the wideband cross ratio includes the finite-average bias "
           "of |G_xy| where the two channels are incoherent; over the %d "
           "bins with model coherence above 0.5 it is %.4f with phase %.4f "
           "rad rms" % (hi.sum(), w01[hi].mean(),
@@ -1185,7 +934,7 @@ def verify(args):
           "%.2e m/s^2" % dstay)
     add("E_channels", stay_max_diff=dstay)
 
-    # -- [F] estimators on exact curves ------------------------------------
+    # -- [F] methods on exact curves ------------------------------------
     f0, zt = 3.3, 0.005
     fe = np.linspace(3.0, 3.6, 600001)
     om, w0 = 2 * np.pi * fe, 2 * np.pi * f0
@@ -1197,8 +946,8 @@ def verify(args):
           "zeta = %.5f" % (f0, zt))
     print("    receptance   : f %.6f Hz, zeta %.6f (%+.3f %%)"
           % (hp["f0"], hp["zeta"], 100 * (hp["zeta"] / zt - 1)))
-    print("    accelerance  : f %.6f Hz, zeta %.6f (%+.3f %%)   this is the "
-          "quantity an ambient survey measures"
+    print("    accelerance  : f %.6f Hz, zeta %.6f (%+.3f %%)   the "
+          "quantity measured in an ambient survey"
           % (hpa["f0"], hpa["zeta"], 100 * (hpa["zeta"] / zt - 1)))
     add("F_halfpower_exact", f0_true=f0, zeta_true=zt,
         f0_receptance=hp["f0"], zeta_receptance=hp["zeta"],
@@ -1228,12 +977,12 @@ def verify(args):
         zeta_err_pct=100 * (e["zeta_efdd"] / zt - 1), n_bell=e["n_bell"],
         n_extrema=e["n_extrema"], r2=e["r2"], nperseg=nps)
 
-    # -- [G] the estimators' own bias at the sweep's processing settings ---
-    print("\n[G] a SINGLE isolated mode at the settings the sweep uses")
-    print("    600 s, nperseg 8192, 20 dB, two channels; the answer is")
-    print("    imposed, so what is measured here is the estimator, not the")
-    print("    structure, and it is the baseline every merged case is read")
-    print("    against")
+    # -- [G] the methods' own bias at the sweep's processing settings ---
+    print("\n[G] a single isolated mode at the processing settings of the sweep")
+    print("    600 s, nperseg 8192, 20 dB, two channels; the mode is imposed,")
+    print("    so the errors below come from the identification method and")
+    print("    not from the structure. They are the baseline for the merged")
+    print("    cases")
     print("    %-7s %6s %11s %11s %11s %11s"
           % ("zeta", "bins/bw", "f error %", "hp zeta", "hp err %",
              "EFDD zeta"))
@@ -1271,8 +1020,8 @@ def verify(args):
             zeta_efdd_err_pct=100 * (np.nanmean(ee) / zt - 1),
             n_seeds=len(fe), duration=600.0, nperseg=8192, snr_db=20.0)
 
-    print("    the same bell smeared by the Welch kernel, which is what a")
-    print("    record's bell actually is, with no Monte Carlo in the answer:")
+    print("    the same bell convolved with the Welch kernel, as in a recorded")
+    print("    spectrum, computed without Monte Carlo:")
     for f0s, zts in ((3.30, 0.005), (3.30, 0.020)):
         w0s = 2 * np.pi * f0s
         for nps2 in (32768, 8192):
@@ -1305,7 +1054,7 @@ def verify(args):
                 n_bell=e2["n_bell"])
 
     # -- [H] the rank argument, exactly ------------------------------------
-    print("\n[H] why the second singular value is small: an exact statement")
+    print("\n[H] second singular value against the rank of the modal forces")
     sim = RecordSimulator(T_TUNE, 0.005)
     fgx = np.linspace(3.05, 3.60, 4001)
     many = ([sim.cd.cable_sensor_dof(x) for x in (2.0, 6.0, 10.0, 14.0)]
@@ -1324,20 +1073,20 @@ def verify(args):
         G = cpsd_model(sim, fgx, dofset, "cont")
         S, _ = sv_decomp(G)
         r2 = float(np.max(S[:, 1] / S[:, 0]))
-        print("    %-11s: modal forces forced to rank one -> max sv2/sv1 "
-              "%.2e ; the bridge's own forces -> %.2e"
+        print("    %-11s: modal forces set to rank one -> max sv2/sv1 "
+              "%.2e ; bridge model forces -> %.2e"
               % (tag, r1, r2))
         add("H_rank", sensors=tag, n_sensors=len(dofset),
             sv2_over_sv1_rank1_forces=r1, sv2_over_sv1_true_forces=r2)
     print("    a perfectly correlated modal force makes the response one")
     print("    complex vector times one scalar, so the cross-spectral matrix")
-    print("    is exactly rank one at every line however many sensors are")
-    print("    added; the bridge is 0.6 per cent away from that, and no")
-    print("    array can recover what the excitation did not put in.")
-    print("    the load modelled here is delta-correlated in space, which is")
-    print("    the FAVOURABLE case.  A load coherent along the members, a")
+    print("    is exactly rank one at every line for any number of sensors;")
+    print("    the bridge model is 0.6 per cent from that limit, and adding")
+    print("    sensors cannot recover what the excitation does not contain.")
+    print("    the load modeled here is delta-correlated in space, the case")
+    print("    most favorable to FDD.  A load coherent along the members, a")
     print("    uniform gust for instance, has a rank-one force matrix by")
-    print("    construction, and that is not an argument but a number:")
+    print("    construction:")
     le_d = sim.bridge["Ld"] / sim.cd.nd
     le_c = sim.bridge["Lc"] / sim.cd.nc
     fvec = np.zeros(sim.cd.N)
@@ -1369,18 +1118,15 @@ def verify(args):
 
 
 # ===========================================================================
-# the exact answer FDD converges to, and where the load balance puts it
+# the exact cross-spectrum: through the crossing and against load balance
 # ===========================================================================
 
 def exact_study(args):
-    """Singular values of the EXACT cross-spectrum, free of estimation.
+    """Singular values of the exact cross-spectrum, free of estimation.
 
-    Separating what FDD can do in principle from what a 600 s record allows
-    is the point of this section: every limit reported here is a property of
-    the structure and the load, not of the record.  The pair is also taken
-    on its own, with every other mode removed, so that the residual
-    flexibility of the deck modes cannot be mistaken for rank the pair does
-    not have.
+    Also computed for the pair alone, with every other mode removed, so the
+    residual flexibility of the deck modes is not read as rank of the pair.
+    Writes data/oma_fdd_exact.csv.
     """
     rows = []
     print("\nEXACT CROSS-SPECTRUM THROUGH THE CROSSING")
@@ -1430,12 +1176,12 @@ def exact_study(args):
     c = d[d["T"] == T_TUNE].iloc[0]
     print("\n  at the crossing, T = %.1f kN: eigenvalues %.5f / %.5f Hz, "
           "split %.3f %%" % (T_TUNE / 1e3, c.f_lo, c.f_hi, 100 * c.s))
-    print("  the pair's modal forces have correlation %.4f there and their "
-          "2 by 2 force matrix has a smaller eigenvalue %.4f of the larger, "
-          "so the excitation is one source and not two"
+    print("  the pair's modal forces have correlation %.4f there, and the "
+          "smaller eigenvalue of their 2 by 2 force matrix is %.4f of the "
+          "larger, so the excitation acts as a single source"
           % (c.gamma_corr, c.gamma_rank2_ratio))
     print("  the two hybrid mode shapes at the two sensors have MAC %.4f, "
-          "so the SENSORS distinguish them; what does not is the excitation"
+          "so the sensors distinguish them; the excitation does not"
           % c.mac_sensor)
     print("  across the whole table the force correlation runs %.4f to %.4f "
           "and the sv2 peak stays %.1f to %.1f dB below the sv1 peak"
@@ -1443,35 +1189,31 @@ def exact_study(args):
              10 * np.log10(d.sv2_peak_ratio_all.max()),
              10 * np.log10(d.sv2_peak_ratio_all.min())))
     rel = 100.0 * (d.f_sv2_all - d.f_deck_alone) / d.f_deck_alone
-    print("  and it does not sit on either branch: over tensions %.0f to "
-          "%.0f kN the sv2 peak moves only %.4f Hz while the branches move "
-          "%.4f Hz, staying within %.2f to %.2f per cent of the DECK mode's "
-          "own frequency %.4f Hz, which does not depend on the stay tension "
-          "at all"
+    print("  the sv2 peak lies on neither branch: over tensions %.0f to "
+          "%.0f kN it moves %.4f Hz while the branches move "
+          "%.4f Hz, and it stays within %.2f to %.2f per cent of the "
+          "deck-alone frequency %.4f Hz, which does not depend on the stay "
+          "tension"
           % (d["T"].min() / 1e3, d["T"].max() / 1e3,
              d.f_sv2_all.max() - d.f_sv2_all.min(),
              d.f_hi.max() - d.f_lo.min(), rel.min(), rel.max(),
              d.f_deck_alone.iloc[0]))
-    print("  a second singular value read as a stay mode therefore returns "
-          "a tension that does not move when the tension does")
+    print("  a tension read from the second singular value therefore does "
+          "not follow the stay tension")
     d.to_csv(os.path.join(DATA, "oma_fdd_exact.csv"), index=False)
     print("  wrote data/oma_fdd_exact.csv")
     return d
 
 
 def exact_law_sweep(args):
-    """What law does the FDD frequency obey, with the record taken out?
+    """Law obeyed by the FDD frequency on the exact cross-spectrum.
 
-    The sweep on records answers this with noise in it.  Here the exact
-    cross-spectrum is built at every tension, its first singular value is
-    maximised, and the maximum is compared with the branch value and with
-    the merged-peak law of ``run_merged.xstar``.  Because FDD's frequency is
-    still the argument of a maximum, the prediction is that it obeys the
-    merged-peak law and not the branch law, and this measures whether it
-    does.
+    At every tension the peak of the first singular value is compared with
+    the branch value and with the merged-peak law of ``run_merged.xstar``.
+    Writes data/oma_fdd_exactlaw.csv.
     """
     rows = []
-    print("\nWHICH LAW THE FDD FREQUENCY OBEYS, ON THE EXACT SPECTRUM")
+    print("\nFDD FREQUENCY AGAINST THE BRANCH AND MERGED-PEAK LAWS, EXACT SPECTRUM")
     print("=" * 74)
     fg = np.linspace(3.02, 3.62, 60001)          # 1e-5 Hz
     hw = 3.0 * (fg[1] - fg[0])
@@ -1524,11 +1266,11 @@ def exact_law_sweep(args):
                  rms(g.eps_cp_sv1_pct, g.eps_cp_branch_pct),
                  rms(g.eps_cp_sv1_pct, g.eps_cp_pp_pct),
                  10 * np.log10(g.sv2_peak_ratio.mean())))
-    print("  the first singular value is a maximum of a spectrum, so it "
-          "obeys the merged-peak law, not the branch law")
+    print("  the first singular value is a spectral maximum, so it "
+          "follows the merged-peak law, not the branch law")
     print("\n  worst tension error over the same tensions, per cent, and "
-          "as a multiple of the branch value; this is the danger band with "
-          "the record taken out")
+          "as a multiple of the branch value, on the exact spectrum "
+          "without record noise")
     print("  %-7s %10s %10s %10s %10s %10s"
           % ("zeta", "FDD sv1", "pick", "merged law", "branch", "FDD/br"))
     for z in ZETAS:
@@ -1538,15 +1280,15 @@ def exact_law_sweep(args):
               % (z, g.eps_cp_sv1_pct.abs().max(),
                  g.eps_cp_pp_pct.abs().max(), g.eps_cp_law_pct.abs().max(),
                  wb, g.eps_cp_sv1_pct.abs().max() / wb))
-    print("  FDD takes the same merged-peak relief peak picking does: the "
+    print("  FDD shows the same merged-peak reduction as peak picking: the "
           "ratio rises to about 1.08 near u = 1.15 and falls below 1 once "
-          "the pair has merged, which is what the branch law returning in "
-          "full would forbid")
+          "the pair has merged, which the branch law alone "
+          "cannot produce")
     g2 = d[d.zeta == 0.020]
-    print("  and the second singular value carries no tension at all: over "
+    print("  the second singular value does not track the tension: over "
           "%.0f to %.0f kN at zeta = 2 per cent its peak moves %.4f Hz "
           "while the isolated stay frequency moves %.4f Hz, so the tension "
-          "read from it runs from %+.1f to %+.1f per cent"
+          "error read from it runs from %+.1f to %+.1f per cent"
           % (g2["T"].min() / 1e3, g2["T"].max() / 1e3,
              g2.f_sv2.max() - g2.f_sv2.min(),
              g2.f_iso.max() - g2.f_iso.min(),
@@ -1557,17 +1299,15 @@ def exact_law_sweep(args):
 
 
 def load_balance_study(args):
-    """Where in the load balance the second singular value comes alive.
+    """Second singular value against the stay-to-deck load intensity ratio.
 
-    ``stay_load_ratio`` is the spatial intensity of the ambient load on the
-    stay divided by that on the deck.  Equation (3) of the header says the
-    modal force correlation passes through zero where the two constituent
-    modes take equal generalised force, and that is the only place FDD's
-    premise holds.  This locates it, at the exact cross-spectrum so that
-    nothing here is an estimation artefact, and reports the pair on its own
-    beside the whole model because at very small ratios the deck modes'
-    residual flexibility dominates the deck channel and inflates the second
-    singular value for a reason that has nothing to do with the pair.
+    ``stay_load_ratio`` is the ambient load intensity on the stay over that
+    on the deck.  The pair's modal force correlation,
+    (sigma_s^2 - sigma_d^2) / (sigma_s^2 + sigma_d^2), vanishes where the
+    stay and deck modes take equal generalized force.  Uses the exact
+    cross-spectrum; the pair alone is reported beside the whole model since
+    at small ratios deck-mode residual flexibility inflates sv2.  Writes
+    data/oma_fdd_loadbalance.csv.
     """
     rows = []
     print("\nLOAD BALANCE AND THE SECOND SINGULAR VALUE")
@@ -1611,12 +1351,12 @@ def load_balance_study(args):
 
 
 # ===========================================================================
-# the sweep: four estimators through the crossing, on records
+# the sweep: four methods through the crossing, on records
 # ===========================================================================
 
 def run_one(sim, T, zeta, duration, snr_db, seed, nperseg, noise_ref,
             band=BAND):
-    """All four estimators on one record."""
+    """All four methods on one record."""
     X, r = two_channel_record(sim, duration, snr_db, seed,
                               noise_ref=noise_ref)
     f, G, nseg, keff = cpsd_welch(X, sim.fs, nperseg=nperseg)
@@ -1673,17 +1413,15 @@ def run_one(sim, T, zeta, duration, snr_db, seed, nperseg, noise_ref,
         out["eps_ts_%s_pct" % tag] = ets
         out["eps_cp_%s_pct" % tag] = ecp
 
-    # the same decomposition on channels scaled to unit variance.  Scaling
-    # cannot manufacture a second source, but it is the obvious objection to
-    # a second singular value that is small because one channel is small, so
-    # it is measured rather than argued away.
+    # the same decomposition on channels scaled to unit variance, to check
+    # that sv2 is not small only because one channel is small
     Xn = X / X.std(axis=1, keepdims=True)
     _, Gn, _, _ = cpsd_welch(Xn, sim.fs, nperseg=nperseg)
     Sn, Un = sv_decomp(Gn)
     resn = fdd(f, Sn, Un, keff, hw, band=band)
 
-    # the white sensor noise adds its own level to every singular value, so
-    # the floor sv2 cannot go below is stated beside sv2 itself
+    # white sensor noise sets a floor under every singular value; report it
+    # beside sv2
     nrms = r["meta"]["noise_rms"]
     noise_psd = min(nrms) ** 2 / (0.5 * sim.fs) if min(nrms) > 0 else 0.0
     mband = (f >= band[0]) & (f <= band[1])
@@ -1714,7 +1452,7 @@ def run_one(sim, T, zeta, duration, snr_db, seed, nperseg, noise_ref,
                n_bell2=ef.get("sv2", {}).get("n_bell", 0),
                r2_efdd1=ef.get("sv1", {}).get("r2", np.nan))
 
-    # does anything the two singular value curves show land on f_hi?
+    # nearest peak on either singular value curve to each true branch
     cands = (np.concatenate([np.sort(res["sv1"]["f"]),
                              np.sort(res["sv2"]["f"])])
              if (res["sv1"]["n"] + res["sv2"]["n"]) else np.array([]))
@@ -1730,9 +1468,11 @@ def run_one(sim, T, zeta, duration, snr_db, seed, nperseg, noise_ref,
 
 
 def sweep(args):
+    """Four methods over tensions, damping ratios and seeds; writes
+    data/oma_fdd_sweep.csv."""
     rows = []
     seeds = tuple(range(args.nseed))
-    print("\nFOUR ESTIMATORS THROUGH THE CROSSING")
+    print("\nFOUR METHODS THROUGH THE CROSSING")
     print("=" * 74)
     print("  %d tensions x %d damping ratios x %d seeds, %.0f s records at "
           "%.0f dB" % (len(T_SWEEP), len(ZETAS), len(seeds), args.dur,
@@ -1757,6 +1497,7 @@ def sweep(args):
 
 
 def sweep_report(d):
+    """Print the summary tables of the sweep."""
     print("\n" + "=" * 74)
     print("REPORT")
     print("=" * 74)
@@ -1781,19 +1522,19 @@ def sweep_report(d):
     b = d.n_sv1 >= 2
     c = d.n_sv1_norm >= 2
     print("   FDD's first singular value and peak picking disagree on "
-          "whether the pair is resolved in %d of the %d rows, %d where FDD "
-          "resolves and picking does not and %d the other way; scaling the "
-          "channels to equal variance disagrees with picking in %d rows, "
-          "%d and %d each way, so it trades resolutions at 0.2 per cent "
-          "damping for losses at 0.5 and changes nothing at 1 per cent "
-          "and above"
+          "whether the pair is resolved in %d of the %d rows (%d resolved "
+          "by FDD only, %d by picking only); scaling the "
+          "channels to equal variance disagrees with picking in %d rows "
+          "(%d resolved only after scaling, %d only by picking); scaling "
+          "adds resolved rows at 0.2 per cent damping, removes some at 0.5 "
+          "and changes none at 1 per cent and above"
           % (int((a != b).sum()), len(d), int(((~a) & b).sum()),
              int((a & (~b)).sum()), int((a != c).sum()),
              int(((~a) & c).sum()), int((a & (~c)).sum())))
-    print("   no processing choice tried here resolves the pair at 1 per "
-          "cent damping or above, where u falls below 1.17")
+    print("   none of the processing settings resolves the pair at 1 per "
+          "cent damping or above, where u is below 1.17")
 
-    print("\n2. does FDD return a different frequency from peak picking?")
+    print("\n2. FDD frequency against the peak-picked frequency")
     ok = d[np.isfinite(d.f_sv1) & np.isfinite(d.f_pp)]
     dd = (100.0 * (ok.f_sv1 / ok.f_pp - 1.0)).abs()
     de = (ok.eps_cp_sv1_pct - ok.eps_cp_pp_pct).abs()
@@ -1807,7 +1548,7 @@ def sweep_report(d):
           "peaks is not the same peak on the two curves"
           % (de.median(), de.quantile(0.99), de.max(), len(ok)))
 
-    print("\n3. when a record actually shows two peaks, against the "
+    print("\n3. records showing two peaks, against the "
           "closed-form criterion")
     two = d[d.n_pp >= 2]
     one = d[d.n_pp < 2]
@@ -1816,13 +1557,13 @@ def sweep_report(d):
           "one is %.2f"
           % (len(two), len(d), two.u.min() if len(two) else np.nan,
              one.u.max() if len(one) else np.nan))
-    print("   the closed forms put the dip at u = 0.486 and a 3 dB dip at "
+    print("   the closed forms give the dip at u = 0.486 and a 3 dB dip at "
           "u = 1.140; on a 600 s record with %d effective averages the "
-          "prominence floor is %.2f dB, so a 3 dB dip cannot be called and "
-          "the working threshold is about twice the closed-form one"
+          "prominence floor is %.2f dB, so a 3 dB dip is not detected and "
+          "the practical threshold is about twice the closed-form value"
           % (round(d.k_eff.iloc[0]), d.prom_db.iloc[0]))
 
-    print("\n4. the second singular value, FDD's claim to fame")
+    print("\n4. the second singular value")
     print("   %-7s %12s %12s %12s %14s"
           % ("zeta", "sv2pk/sv1pk", "in dB", "over noise", "f_sv2 vs f_hi %"))
     for z in zs:
@@ -1834,8 +1575,8 @@ def sweep_report(d):
                  s.sv2_over_noise_db.mean(),
                  _fmt(np.nanmean(100 * (h.f_sv2 / h.f_hi - 1)), 2)
                  if len(h) else "n/a"))
-    print("   the sv2 peak sits between the branches, not on the upper one,")
-    print("   and it never carries a second frequency the sv1 curve lacks")
+    print("   the sv2 peak lies between the branches, not on the upper one,")
+    print("   and gives no frequency that the sv1 curve does not show")
 
     print("\n5. tension error at the crossing, per cent of the true tension")
     print("   %-7s %9s %9s %9s %9s %9s %9s"
@@ -1864,8 +1605,8 @@ def sweep_report(d):
         print("   %-7.3f %9.3f %9.3f %9s %9.3f | %8.3f %8.3f"
               % (z, wp, wf, _fmt(we, 3), wb, wp / wb, wf / wb))
 
-    print("\n7. half-power damping at the crossing, against the SAME "
-          "estimator on the same sweep far from it")
+    print("\n7. half-power and EFDD damping at the crossing, against the "
+          "same method far from the crossing")
     print("   %-7s %7s %9s %9s %7s %9s %9s %7s"
           % ("zeta", "u tune", "hp tune", "hp far", "ratio", "EFDD tune",
              "EFDD far", "ratio"))
@@ -1880,14 +1621,14 @@ def sweep_report(d):
               % (z, s.u.iloc[k], s.zeta_hp_ratio.iloc[k], rf,
                  s.zeta_hp_ratio.iloc[k] / rf, _fmt(ez, 3), _fmt(ef, 3),
                  _fmt(ez / ef, 3)))
-    print("   the far columns are the estimator's own bias at this "
-          "resolution, so only the ratios are statements about the crossing;"
-          " both damping estimates inflate where the pair cannot be "
-          "resolved, which makes the damping the warning sign the frequency "
-          "is not")
+    print("   the far columns give the bias of each method at this "
+          "resolution, so only the ratios describe the crossing;"
+          " both damping estimates increase where the pair is not "
+          "resolved, so the damping indicates the crossing and the "
+          "frequency does not")
 
-    print("\n8. which law describes what each estimator returns, as a root "
-          "mean square over the whole sweep, in percentage points of "
+    print("\n8. root mean square difference between each method and each "
+          "law over the whole sweep, in percentage points of "
           "tension")
     print("   %-7s %12s %12s %12s %12s"
           % ("zeta", "pick vs law", "pick vs br", "FDD vs law",
@@ -1915,18 +1656,16 @@ def sweep_report(d):
 
 
 # ===========================================================================
-# supplementary: does a second stay sensor help, and a longer record
+# supplementary: sensor placement, mode shapes, record length
 # ===========================================================================
 
 def extra_sensor_study(args):
-    """Two sensors on the stay, against one on the stay and one on the deck.
+    """FDD at the crossing with the second sensor on the deck or on the stay.
 
-    The classical prescription for closely spaced modes is more sensors.
-    This measures whether that is available here, and the answer is decided
-    by the excitation rather than by the array.
+    Writes data/oma_fdd_sensors.csv.
     """
     rows = []
-    print("\nWHERE THE SECOND SENSOR GOES")
+    print("\nPOSITION OF THE SECOND SENSOR")
     print("=" * 74)
     for zeta in (0.005, 0.020):
         sim = RecordSimulator(T_TUNE, zeta)
@@ -1971,18 +1710,14 @@ def extra_sensor_study(args):
 
 
 def shape_study(args):
-    """The mode shapes the singular vectors return, against the truth.
+    """MAC of the singular vectors and the EFDD shape against the true modes.
 
-    A singular vector is defined only up to a complex scale, so the modal
-    assurance criterion is the comparison, and each identified shape is
-    scored against BOTH hybrid modes rather than against the nearer one, so
-    that a shape matching the wrong branch is visible instead of hidden.
-    The ceiling is set by the structure: the two true shapes are themselves
-    similar at any small sensor set, and how similar is reported beside the
-    estimates.
+    Each shape is scored against both hybrid modes, so a match to the wrong
+    branch shows; the MAC between the two true shapes is reported beside.
+    Writes data/oma_fdd_shapes.csv.
     """
     rows = []
-    print("\nTHE MODE SHAPES THE SINGULAR VECTORS RETURN")
+    print("\nMODE SHAPES FROM THE SINGULAR VECTORS")
     print("=" * 74)
     print("  %-7s %8s %6s %8s %8s %8s %8s %8s"
           % ("zeta", "T kN", "u", "true MAC", "sv1-lo", "sv1-hi", "sv2-lo",
@@ -2020,10 +1755,10 @@ def shape_study(args):
                   % (zeta, T / 1e3, q.u, q.mac_true_pair, q.mac_sv1_lo,
                      q.mac_sv1_hi, q.mac_sv2_lo, q.mac_sv2_hi))
     d = pd.DataFrame(rows)
-    print("  the two TRUE hybrid shapes have MAC %.4f with each other at "
-          "these two sensors and %.4f over all degrees of freedom, so a "
-          "shape estimate that matches one perfectly still matches the "
-          "other that well; the sensors are not what fails"
+    print("  the two true hybrid shapes have MAC %.4f with each other at "
+          "these two sensors and %.4f over all degrees of freedom, so an "
+          "estimate that matches one shape exactly has that MAC with the "
+          "other; the sensors can separate the two shapes"
           % (d.mac_true_pair.mean(), d.mac_true_pair_full.mean()))
     d.to_csv(os.path.join(DATA, "oma_fdd_shapes.csv"), index=False)
     print("  wrote data/oma_fdd_shapes.csv")
@@ -2031,7 +1766,10 @@ def shape_study(args):
 
 
 def long_record_study(args):
-    """The same question with the record length and resolution removed."""
+    """Peak counts on 600 s and 3600 s records, with and without sensor noise.
+
+    Writes data/oma_fdd_long.csv.
+    """
     rows = []
     print("\nLONGER RECORDS, FINER RESOLUTION")
     print("=" * 74)

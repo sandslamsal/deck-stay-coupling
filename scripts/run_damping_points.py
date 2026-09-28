@@ -1,25 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Revision 1, R1.8: three more finite element points for the resolvability
-check.
+"""Damping at which the hybrid peaks merge, for three more stay designs.
 
-scripts/run_damping.py drives the worked bridge at its crossing with
-Rayleigh damping calibrated on both hybrid modes and finds, by bisection,
-the damping at which the two peaks of the stay-mounted driving-point
-receptance merge (3 dB prominence) and at which the dip vanishes; the
-manuscript reports the merge earlier than the equal-residue two-Lorentzian
-model predicts, 0.81 against 1.03 per cent, and calls the population
-fractions lower bounds on that one point. This script repeats the check on
-three graded campaign designs chosen for their split: near the population
-median (0.32 %), the ninetieth percentile (1.5 %) and the ninety-ninth
-(4.5 %), each at its own crossing, found by traversing the tension.
-
-The sensor sits a short way up the chord from the anchorage, 2 m or five
-per cent of the chord, whichever is larger. Everything else follows
-run_damping.py: exact modal-sum receptance, 3 dB prominence, bisection.
-
-Writes data/damping_points.csv.
-
-Run:  python3 scripts/run_damping_points.py
+Repeats the resolvability check of scripts/run_damping.py (exact modal-sum
+receptance at a stay sensor, Rayleigh damping on both hybrid modes, 3 dB
+prominence, bisection) on three designs from data/campaign.csv with splits
+near 0.32, 1.5 and 4.5 percent, each at its own crossing. The sensor sits
+max(2 m, 0.05 L_c) up the chord. Writes data/damping_points.csv.
+Run: python3 scripts/run_damping_points.py
 """
 from __future__ import annotations
 

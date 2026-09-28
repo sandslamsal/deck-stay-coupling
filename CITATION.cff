@@ -10,6 +10,7 @@ authors:
     given-names: Rubi
     orcid: "https://orcid.org/0009-0005-3650-4619"
     affiliation: "EAC Consulting, Inc.; Florida International University"
+doi: "10.5281/zenodo.23005585"
 repository-code: "https://github.com/sandslamsal/deck-stay-coupling"
 license: MIT
 version: "1.0.0"

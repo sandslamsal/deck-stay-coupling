@@ -1,35 +1,10 @@
 # -*- coding: utf-8 -*-
-"""The pilot, and the gate the study has to pass.
+"""Pilot: modal mass ratio by bridge class and inversion error near crossings.
 
-Two questions, in order, and the study only continues if the second is
-answered yes.
-
-PART A  Is the footbridge really the exposed class?
-        The gap note claims the cable-to-deck modal mass ratio ``mu`` is an
-        order of magnitude larger on a footbridge than on a long-span
-        vehicular cable-stayed bridge, which is the whole reason for
-        restricting the study to footbridges.  That claim was asserted from
-        rough figures and never computed.  Part A computes it over realistic
-        property ranges for both classes and reports the answer whatever it
-        is.
-
-PART B  Does deck-stay coupling bias the incumbent tension inversion at the
-        cable mode orders field practice actually uses?
-        The tension is varied so that stay modes pass through deck modes.
-        At every step the coupled system is solved, a stay-mounted
-        accelerometer is simulated, the incumbent formulas are inverted on
-        what that sensor would show, and the tension error is recorded.
-
-        Two picking strategies bound the problem:
-
-          oracle  every picked peak is matched to the isolated stay mode it
-                  belongs to by modal assurance criterion, so the engineer
-                  never mis-assigns a mode.  Any error left is pure
-                  frequency shift.  This is the floor.
-          naive   peaks are taken in frequency order and numbered 1, 2, 3,
-                  which is what an engineer with one accelerometer and a
-                  spectrum does.  This includes mis-assignment.
-
+Part A samples the stay-to-deck modal mass ratio mu for footbridges and
+long-span vehicular bridges. Part B varies the stay tension so that stay
+modes pass through deck modes, and inverts the coupled frequencies after
+oracle (MAC-matched), screened and naive (frequency-order) peak picking.
 Writes data/pilot_census.csv and data/pilot_detuning.csv.
 
 Run:  python3 scripts/run_pilot.py
@@ -54,13 +29,11 @@ from cablefe import (CableDeck, invert_multimode, invert_string,  # noqa: E402
 DATA = os.path.join(ROOT, "data")
 
 
-# ---------------------------------------------------------------------------
-# PART A: is the footbridge the exposed class?
-# ---------------------------------------------------------------------------
+# --- Part A: modal mass ratio by bridge class ---
 
-# Property ranges. Deck mass per metre, span, stay mass per metre, stay chord
-# length, stay tension. Footbridge figures are for a light steel or composite
-# deck; long-span figures for a typical highway cable-stayed bridge.
+# Sampled ranges: deck mass md (kg/m), span Ld (m), stay mass mc (kg/m), stay
+# chord length Lc (m), stay tension T (N). Footbridge: light steel or
+# composite deck; long span: typical highway cable-stayed bridge.
 CLASSES = {
     "footbridge": dict(
         md=(800.0, 2500.0), Ld=(40.0, 120.0),
@@ -72,12 +45,8 @@ CLASSES = {
 
 
 def census(nsamp=4000, seed=7):
-    """Modal mass ratio and stay fundamental for both bridge classes.
-
-    ``mu`` is the ratio of stay modal mass to deck modal mass, both taken on
-    a half-sine, which is the quantity that sets how strongly two modes
-    interact when their frequencies meet.
-    """
+    """Sample the modal mass ratio mu (stay over deck, both on a half-sine)
+    and the stay fundamental for both bridge classes."""
     rng = np.random.default_rng(seed)
     rows = []
     for name, r in CLASSES.items():
@@ -99,9 +68,9 @@ def census(nsamp=4000, seed=7):
 
 def report_census(d):
     print("=" * 74)
-    print("PART A  Is the footbridge the exposed class?")
+    print("PART A  Modal mass ratio by bridge class")
     print("=" * 74)
-    print("  mu = stay modal mass / deck modal mass, over realistic ranges")
+    print("  mu = stay modal mass / deck modal mass, over the sampled ranges")
     print()
     print(f"  {'class':22s} {'p05':>10s} {'median':>10s} {'p95':>10s}"
           f" {'f_stay1 med':>12s}")
@@ -117,31 +86,21 @@ def report_census(d):
     print(f"  ratio of medians, footbridge / long-span: {a / b:.2f}x")
     print()
     if a / b < 3.0:
-        print("  FINDING: the two classes have COMPARABLE modal mass ratios.")
-        print("  The gap note's claim of an order of magnitude is NOT")
-        print("  supported. The footbridge restriction cannot rest on mu.")
-        print("  Correct the gap statement before it reaches the manuscript.")
+        print("  The two classes have comparable modal mass ratios: the")
+        print("  ratio of medians is below 3, well short of an order of")
+        print("  magnitude, so mu alone does not single out the footbridge")
+        print("  class.")
     else:
-        print(f"  FINDING: the footbridge ratio is {a / b:.1f}x larger,")
-        print("  which supports restricting the study to that class.")
+        print(f"  The footbridge ratio is {a / b:.1f}x larger,")
+        print("  so mu alone singles out the footbridge class.")
     return a / b
 
 
-# ---------------------------------------------------------------------------
-# PART B: does coupling bias the inversion?
-# ---------------------------------------------------------------------------
+# --- Part B: coupling bias of the tension inversion ---
 
-# Two representative bridges, one from each class, held fixed while the stay
-# tension is varied so that stay modes travel through the deck spectrum.
-#
-# The study is about cable-stayed bridges generally, so the mechanism has to
-# be shown on both classes rather than inferred from one. The deck is a
-# two-component idealisation in both cases: one stay on one flexible host.
-# For the long-span entry the deck stiffness is chosen to place the global
-# frequencies where a long-span cable-stayed bridge has them, since a single
-# simply supported span with one stay is not a literal model of a bridge
-# carried on fifty stays. What has to be representative is the pair of
-# dimensionless groups and the host modal density, not the elevation.
+# One representative bridge per class, one stay on a simply supported deck,
+# held fixed while the stay tension varies. The long-span deck stiffness
+# places the global frequencies where a long-span bridge has them.
 BRIDGES = {
     "footbridge": dict(Ld=80.0, EId=2.0e9, md=1000.0,
                        Lc=25.0, EIc=1.2e4, mc=5.5, EA=1.4e8,
@@ -157,7 +116,7 @@ TRANGE = {
 BRIDGE = BRIDGES["footbridge"]
 
 NMODE_ID = 5          # stay mode orders the inversion uses
-SENSOR_M = 2.0        # accelerometer this far up the chord from the anchorage
+SENSOR_M = 2.0        # sensor distance (m) up the chord from the anchorage
 
 
 def mac(a, b):
@@ -167,11 +126,8 @@ def mac(a, b):
 
 
 def oracle_pick(cd, f, Phi, nmax):
-    """Match each isolated stay mode to its coupled counterpart by MAC.
-
-    Perfect mode identification: the engineer is credited with knowing
-    exactly which peak belongs to which stay mode order.
-    """
+    """Match each isolated stay mode to its coupled counterpart by MAC;
+    returns (frequencies, MAC values)."""
     cdofs = np.array(cd.cable_dofs())
     x = np.linspace(0.0, 1.0, len(cdofs))
     out = []
@@ -217,9 +173,7 @@ def detuning_study(nT=360, bridge=None, trange=None):
             if abs(r[j] - 1.0) < abs(beta_min - 1.0):
                 beta_min, n_at = r[j], n
 
-        # detuning of stay mode 1 alone, which is what the single-mode
-        # inversion actually uses. beta_min above can be driven by a high
-        # stay mode and would hide the fact that mode 1 is far from anything.
+        # detuning of stay mode 1, the mode the single-mode inversion uses
         r1 = stay[0] / deck
         j1 = np.argmin(np.abs(r1 - 1.0))
         beta_1 = r1[j1]
@@ -231,9 +185,8 @@ def detuning_study(nT=360, bridge=None, trange=None):
                    mac_min=float(np.min(mac_or)),
                    xi=xi_param(BRIDGE["Lc"], T, BRIDGE["EIc"]))
 
-        # CONTROL: exact isolated-cable frequencies, no coupling anywhere.
-        # Isolates the recognised bending-stiffness bias of the formula from
-        # the coupling bias under examination.
+        # control: exact isolated-cable frequencies, no coupling; separates
+        # the bending-stiffness bias of the formula from the coupling bias
         f_iso = np.array([tensioned_beam_freq(n, BRIDGE["Lc"], T,
                                               BRIDGE["EIc"], BRIDGE["mc"])
                           for n in range(1, NMODE_ID + 1)])
@@ -242,14 +195,14 @@ def detuning_study(nT=360, bridge=None, trange=None):
         Tm_ct, _ = invert_multimode(f_iso, BRIDGE["Lc"], BRIDGE["mc"])
         rec["err_multi_control"] = 100.0 * (Tm_ct - T) / T
 
-        # incumbent inversions, oracle picking
+        # string and multi-mode inversions, oracle picking
         Ts_or = invert_string(f_or, BRIDGE["Lc"], BRIDGE["mc"])
         rec["err_string_n1_oracle"] = 100.0 * (Ts_or[0] - T) / T
         Tm_or, EIm_or = invert_multimode(f_or, BRIDGE["Lc"], BRIDGE["mc"])
         rec["err_multi_oracle"] = 100.0 * (Tm_or - T) / T
         rec["EI_multi_oracle"] = EIm_or
 
-        # incumbent inversions, screened picking (realistic practice)
+        # string and multi-mode inversions, screened picking
         sd = cd.cable_sensor_dof(SENSOR_M)
         amp = np.abs(Phi[sd, :])
         cand = f[amp >= 0.05 * amp.max()]
@@ -263,7 +216,7 @@ def detuning_study(nT=360, bridge=None, trange=None):
             rec["err_string_n1_screened"] = np.nan
             rec["err_multi_screened"] = np.nan
 
-        # how much does blind numbering depend on where the floor is put?
+        # sensitivity of blind numbering to the amplitude floor
         spread = []
         for fl in (0.02, 0.05, 0.10, 0.20, 0.35):
             fk = np.sort(f[amp >= fl * amp.max()])[:NMODE_ID]
@@ -272,7 +225,7 @@ def detuning_study(nT=360, bridge=None, trange=None):
                 spread.append(100.0 * (Tm - T) / T)
         rec["naive_floor_spread"] = (max(spread) - min(spread)) if spread else np.nan
 
-        # incumbent inversions, naive picking
+        # string and multi-mode inversions, naive picking
         if len(f_nv) >= 3:
             Ts_nv = invert_string(f_nv, BRIDGE["Lc"], BRIDGE["mc"])
             rec["err_string_n1_naive"] = 100.0 * (Ts_nv[0] - T) / T
@@ -293,7 +246,7 @@ def detuning_study(nT=360, bridge=None, trange=None):
 def report_detuning(d):
     print()
     print("=" * 74)
-    print("PART B  Does coupling bias the incumbent inversion?")
+    print("PART B  Coupling bias of the tension inversion")
     print("=" * 74)
     print(f"  Ld={BRIDGE['Ld']:.0f} m, "
           f"Lc={BRIDGE['Lc']:.0f} m, theta={np.rad2deg(BRIDGE['theta']):.0f} deg")
@@ -303,9 +256,9 @@ def report_detuning(d):
           f"{SENSOR_M:.0f} m above the anchorage")
     print()
 
-    print("  CONTROL, no coupling: worst error of the same formulas on the")
-    print("  exact isolated-cable frequencies. This is the recognised")
-    print("  bending-stiffness bias, and anything above it is the coupling.")
+    print("  Control, no coupling: worst error of the same formulas on the")
+    print("  exact isolated-cable frequencies. This is the")
+    print("  bending-stiffness bias; any excess is due to coupling.")
     print(f"    single-mode  {d.err_string_n1_control.abs().max():6.3f} %"
           f"    multi-mode  {d.err_multi_control.abs().max():6.3f} %")
     print()
@@ -337,8 +290,8 @@ def report_detuning(d):
           f"any-mode {len(nearm)}/{len(farm)})")
 
     print()
-    print("  CAN A CROSSING BE AVOIDED?")
-    print(f"    largest |beta-1| reached by ANY of stay modes 1-{NMODE_ID}, "
+    print("  Proximity of stay modes to deck modes")
+    print(f"    largest |beta-1| reached by any of stay modes 1-{NMODE_ID}, "
           f"over the whole")
     print(f"    tension range: {(d.beta - 1).abs().max():.3f}. Tensions with "
           f"some stay mode")
@@ -350,13 +303,13 @@ def report_detuning(d):
           f"of tensions.")
 
     print()
-    print("  HOW MUCH OF THE BLIND-NUMBERING ERROR IS THE THRESHOLD?")
+    print("  Sensitivity of blind numbering to the amplitude floor")
     print(f"    spread of the multi-mode error across amplitude floors")
     print(f"    0.02 to 0.35, median over the range: "
           f"{d.naive_floor_spread.median():.1f} pp, worst "
           f"{d.naive_floor_spread.max():.1f} pp.")
-    print("    Blind numbering is therefore not quotable on its own. The")
-    print("    screened result is the one that carries a number.")
+    print("    The blind-numbering error depends on the floor chosen,")
+    print("    so the screened result is reported instead.")
 
     print()
     print("  worst tension error anywhere in the range:")
@@ -379,22 +332,22 @@ def report_detuning(d):
     worst_naive = np.nanmax([d.err_string_n1_naive.abs().max(),
                              d.err_multi_naive.abs().max()])
     print("=" * 74)
-    print("  THE GATE")
+    print("  Worst tension error by picking method")
     print("=" * 74)
-    print(f"  pure frequency-shift bias (oracle picking):   {worst_oracle:.2f} %")
-    print(f"  realistic practice (harmonic-comb screening): {worst_screened:.2f} %")
+    print(f"  frequency-shift bias (oracle picking):        {worst_oracle:.2f} %")
+    print(f"  harmonic-comb screening:                      {worst_screened:.2f} %")
     print(f"  blind numbering, threshold-dependent:         {worst_naive:.2f} %")
     print()
     if worst_screened < 2.0:
-        print("  The bias is small at practical mode orders. The premise")
-        print("  does NOT survive. Report it and stop.")
+        print("  The screened-picking error is below 2 %, so the coupling")
+        print("  bias is small at these mode orders.")
     elif worst_oracle < 2.0 <= worst_screened:
-        print("  The frequency shift alone is small, but MODE")
-        print("  MIS-ASSIGNMENT is not. The study's subject is the second")
-        print("  mechanism, not the first. Reframe the gap statement.")
+        print("  The frequency-shift bias alone is below 2 %, but mode")
+        print("  mis-assignment raises the screened-picking error to 2 %")
+        print("  or more.")
     else:
-        print("  Both mechanisms bias the inversion materially. The premise")
-        print("  survives and the full campaign is justified.")
+        print("  Both the frequency-shift bias and the screened-picking")
+        print("  error reach 2 % or more.")
     return worst_oracle, worst_naive
 
 
@@ -421,7 +374,7 @@ def main():
 
     print()
     print("=" * 74)
-    print("  DOES THE MECHANISM GENERALISE ACROSS THE TWO CLASSES?")
+    print("  Worst tension error by bridge class")
     print("=" * 74)
     print(f"  {'class':22s} {'control':>9s} {'oracle':>9s} {'screened':>10s}"
           f" {'max|beta-1|':>12s}")

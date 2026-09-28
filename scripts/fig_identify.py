@@ -1,19 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Figure: the identification repair, and its honest price.
+"""Figure: stay tension identification through the frequency crossing.
 
-  (a)  noise-free tension error against stay tension across the crossing,
-       four estimators.  The incumbent single-mode inversion carries the
-       veering bias; the isolated multi-mode fit suppresses it at this mass
-       ratio; the shape fit and the network free at the anchorage sit on zero
-       through the crossing, because the wavenumber they read from the shape
-       is the coupled one.
-  (b)  the price: RMSE under measurement noise.  The shape method's accuracy
-       is bought with sensitivity to shape noise, and the crossing-immune
-       protocol is chosen per stay with the screening criterion, not adopted
-       wholesale.
+(a) noise-free tension error against stay tension, four methods.
+(b) tension RMSE under shape measurement noise.
 
-Reads data/identify2.csv written by the run_identify2.py sweep.
-
+Reads data/identify2.csv written by scripts/run_identify2.py and writes
+fig_identify.png and fig_identify.pdf to the figures directory OUT.
 Run:  python3 scripts/fig_identify.py
 """
 
@@ -33,7 +25,7 @@ import figstyle as F  # noqa: E402
 
 import matplotlib.pyplot as plt  # noqa: E402
 
-OUT = os.path.join(ROOT, "revision 1", "sources", "figures")
+OUT = os.environ.get("FIGURE_DIR", os.path.join(ROOT, "figures"))
 
 EST = {
     "string_n1": dict(key="incumbent", label="taut string, order 1"),
@@ -80,7 +72,7 @@ def main():
         ax2.bar(xpos + (j - 0.5) * width, rm, width * 0.92,
                 color=F.color(spec["key"]), label=spec["label"],
                 edgecolor='black', linewidth=0.5)
-    # the pinn point at its single tested noise level
+    # network estimate at its single tested noise level
     pn = main9[(main9.estimator == "pinn_free") & (main9.rep >= 0)]
     if len(pn):
         s0 = pn.sigma_s.iloc[0]
@@ -110,8 +102,8 @@ def main():
     fig.savefig(png.replace(".png", ".pdf"))
     print(f"  wrote {png}")
     if len(hn):
-        print(f"  heavy-stay incumbent noise-free error: "
-              f"{hn.err_pct.iloc[0]:+.2f} % (quoted in the caption)")
+        print(f"  heavy-stay taut-string noise-free error: "
+              f"{hn.err_pct.iloc[0]:+.2f} %")
 
 
 if __name__ == "__main__":

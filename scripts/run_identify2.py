@@ -1,42 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Identification, second campaign: the repaired estimators, with noise.
+"""Tension identification with noise: frequency, shape-fit and PINN methods.
 
-The first identification study (run_identify.py) found the coupled PINN
-worse than the incumbent and explained it as a joint-identifiability
-failure.  The explanation was wrong.  The interior of the stay satisfies the
-tensioned-beam equation with the true tension whatever the deck does, so a
-measured mode SHAPE determines the wavenumber, the dispersion relation then
-determines the tension, and the end impedance falls out as a by-product.
-What failed was the soft-penalty Robin parameterisation, whose exponential
-impedance could not even represent the negative sign Z takes just above a
-deck frequency.
-
-This campaign tests the repaired estimators the way the first one tested
-the broken ones, plus measurement noise, which the noise-free comparison of
-run_identify.py ignored and which is where a shape-based method could
-plausibly lose to a frequency-based one.
-
-Estimators:
-    string_n1    incumbent taut string, stay mode 1 frequency
-    multi_iso    isolated multi-mode least squares, orders 1..5 frequencies
-    shapefit     tensioned-beam general solution fitted to the mode-1 shape,
-                 nothing assumed at the anchorage (src/shapefit.py)
-    pinn_free    the repaired network, same premise (only in the noise-free
-                 and one noisy condition; it is 3000x slower than shapefit
-                 and exists to show the machinery is immaterial)
-
-Noise model, applied consistently:
-    frequencies  f -> f (1 + sigma_f xi),  sigma_f = 0.002  (0.2 %)
-    shape        v -> v + sigma_s max|v| xi  per sensor
-    every estimator sees the same noisy frequency; shapefit and pinn_free
-    additionally see the noisy shape.  Mode mis-assignment is NOT simulated
-    here; frequencies are branch-matched by MAC as in run_identify.py.
-
-Slices 0..8: the nine tensions of run_identify.py, either side of the stay
-mode 1 crossing.  Slice 9: a heavier stay (m_c = 20 kg/m at the same
-stress), effective mass ratio 3.6x larger, at its exact crossing tension.
-
-Writes data/identify2_slice_<i>.csv (long format).
+Methods: string_n1 (taut string, mode 1), multi_iso (isolated beam, orders
+1 to 5), shapefit (src/shapefit.py) and pinn_free (src/identify.py). Noise is
+0.2 % on frequency and sigma_s max|v| per shape sensor. Slices 0 to 8 are nine
+tensions across the stay mode-1 crossing; slice 9 is a heavier stay at the same
+stress, at its crossing tension. Writes data/identify2_slice_<i>.csv.
 
 Run:  python3 scripts/run_identify2.py --slice I [--smoke]
 """
@@ -83,7 +52,7 @@ PINN_SIGMA = 0.01
 
 
 def observe(T_true, bridge):
-    """Branch-matched stay frequencies for orders 1..NMAX + mode-1 shape."""
+    """MAC-matched stay frequencies for orders 1..NMAX, and the mode-1 shape."""
     cd = CableDeck(T=T_true, **bridge)
     f, Phi = cd.modes(60)
     cdofs = np.array(cd.cable_dofs())
@@ -106,8 +75,7 @@ def observe(T_true, bridge):
 
 
 def fit_isolated_multi(f_obs, orders, L, m, EI):
-    """Isolated tensioned beam, multi-mode least squares (the strong
-    incumbent from run_identify.py)."""
+    """Tension of an isolated tensioned beam by multi-mode least squares."""
     def resid(p):
         T = np.exp(p[0])
         kn = orders * np.pi / L

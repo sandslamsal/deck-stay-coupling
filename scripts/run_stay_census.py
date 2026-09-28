@@ -1,38 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Revision 1, R2.6 and R2.5: how many stays of a real bridge sit inside
-the veering zone of an identified global mode.
+"""Stays of Ponte del Mare inside the veering zone of an identified global mode.
 
-Ponte del Mare, Pescara. Inputs, both from Kumar (2011):
-  data/pontedelmare_all.csv   Table 5.5 of the thesis (SISTRAL construction-
-                              control survey, 1 December 2009): every stay's
-                              mass per unit length, length at its measured
-                              temperature, first frequency, and the pull
-                              obtained from it by the taut-string formula.
-                              Transcribed from the printed table; the
-                              self-consistency check below (f1 = (1/2L)
-                              sqrt(T/m) on every row) guards the transcription.
-  DECK                        the twelve identified global modes, without
-                              dampers, as scripts/validate_pontedelmare2.py
-                              already carries them.
-
-For each stay and each order n = 1..5 whose frequency lies inside the band
-the identified modes cover, the detuning d = (f_n - f_g) / f_n to the
-nearest identified mode is computed. Whether the stay is inside a veering
-zone then depends on its width s, which the record does not give per stay
-(the anchorage ordinates are unpublished). Three widths are used: the
-population median of the campaign (0.32 %), its ninetieth percentile
-(1.5 %), and the stay's own ceiling from mass normalisation, s_max =
-(2/n pi) cos(theta) sqrt(M_s / M_deck) with cos(theta) = 1 and M_deck = 40 t,
-the lightest deck modal mass the record admits (Section 8). Counts are given
-for |d| < s (inside the width) and for failing the criterion of Eq. (7) at
-a two per cent tolerance.
-
-The ranking the seasonal test of Section 10 needs, stays ordered by |d| of
-the fundamental, is written as well (R2.5).
-
-Writes data/stay_census.csv (one row per stay and order) and
-data/stay_census_summary.csv.
-
+Reads data/pontedelmare_all.csv (Kumar (2011), Table 5.5) and the identified
+global modes from data/external/. For each stay order in the identified band,
+computes the detuning d = (f_n - f_g) / f_n to the nearest mode and counts the
+stays with |d| < s and those failing the screening criterion at 2 %, for three
+veering widths s. Writes data/stay_census.csv and data/stay_census_summary.csv.
 Run:  python3 scripts/run_stay_census.py
 """
 from __future__ import annotations
@@ -47,8 +20,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 DATA = os.path.join(ROOT, "data")
 
-# Values transcribed from Kumar (2011), PhD thesis, University of Trento (Ponte del Mare footbridge). They are not redistributed with
-# this code: they live in data/external/run_stay_census_data.py (see README).
+# Values transcribed from Kumar (2011), PhD thesis, University of Trento
+# (Ponte del Mare footbridge). They are not redistributed with this code:
+# they live in data/external/run_stay_census_data.py (see README).
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), "data", "external"))
 try:
@@ -58,10 +32,10 @@ except ImportError as exc:
     raise SystemExit("scripts/run_stay_census.py needs values transcribed from "
                      "Kumar (2011), PhD thesis, University of Trento (Ponte del Mare footbridge), which are not redistributed here. "
                      "See README, 'Third-party data'.") from exc
-BAND = (0.70, 2.90)          # identified modes cover this; nothing above is known
-S_MEDIAN, S_P90 = 0.0032, 0.015
+BAND = (0.70, 2.90)          # Hz, band covered by the identified modes
+S_MEDIAN, S_P90 = 0.0032, 0.015   # campaign median and 90th-percentile widths
 M_DECK_MIN = 40e3            # kg, lightest deck modal mass the record admits
-TOL = 0.02
+TOL = 0.02                   # tolerance of the screening criterion
 
 
 def crit_fail(d, s, tol=TOL):
@@ -84,6 +58,7 @@ def main():
                 continue
             j = int(np.argmin(np.abs(DECK - fn)))
             d = (fn - DECK[j]) / fn
+            # width ceiling from mass normalization, with cos(theta) = 1
             s_max = (2.0 / (n * np.pi)) * np.sqrt(M_s / M_DECK_MIN)
             rows.append(dict(stay=r.stay, n=n, f_n=fn, f_global=DECK[j], d=d, abs_d=abs(d),
                              M_s=M_s, s_max=s_max,

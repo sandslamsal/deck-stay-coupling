@@ -1,34 +1,11 @@
 # -*- coding: utf-8 -*-
 """Tension from a measured mode shape, with no assumption at the anchorage.
 
-The incumbent frequency method is biased near a crossing because it assumes
-the stay's wavenumber is ``n pi / L``.  Coupling to the deck changes the
-boundary condition at the anchorage, and therefore the wavenumber, while the
-interior of the stay still satisfies the tensioned-beam equation exactly:
-
-    EI V'''' - T V'' = m omega^2 V
-
-whose general solution is
-
-    V(x) = A sin(kx) + B cos(kx) + C e^{-px} + D e^{p(x-L)}
-
-with the propagating and evanescent wavenumbers fixed by the dispersion
-relation for a given tension,
-
-    k^2 = [ sqrt(T^2 + 4 EI m omega^2) - T ] / (2 EI)
-    p^2 = [ sqrt(T^2 + 4 EI m omega^2) + T ] / (2 EI).
-
-So the estimator is a one-dimensional search: for each trial tension the
-four coefficients are a linear least-squares fit to the sampled shape, and
-the tension that minimises the misfit is the answer.  Nothing is imposed at
-the anchorage; the deck's reaction is whatever the fitted shape says it is,
-and the end impedance ``Z = -T V'(L)/V(L)`` falls out as a by-product rather
-than going in as an unknown.
-
-This is the repair of the study's negative result on the coupled estimator.
-The earlier explanation, that tension and deck impedance are not jointly
-identifiable from one mode, was WRONG: the shape identifies both.  What
-failed was the soft-penalty parameterisation, not the physics.
+For each trial tension T, the wavenumbers k and p of the tensioned beam
+EI V'''' - T V'' = m omega^2 V follow from the dispersion relation, and the
+coefficients of V(x) = A sin(kx) + B cos(kx) + C e^{-px} + D e^{p(x-L)} are a
+linear least-squares fit to the sampled shape. The tension that minimizes the
+misfit is returned, with the end impedance Z = -T V'(L)/V(L) as a by-product.
 """
 
 from __future__ import annotations
@@ -50,8 +27,7 @@ def dispersion(T, EI, m, omega):
 def _basis(x, L, k, p):
     cols = [np.sin(k * x), np.cos(k * x)]
     if np.isfinite(p):
-        # evanescent terms written as decaying exponentials from each end,
-        # so nothing overflows however large p L is
+        # evanescent terms decay from each end, so nothing overflows for large p L
         cols += [np.exp(-p * x), np.exp(p * (x - L))]
     return np.column_stack(cols)
 
@@ -69,7 +45,7 @@ def fit_shape(x, v, omega, L, m, EI, n_hint=1, bracket=(0.25, 4.0),
     """Identify tension from sensor positions ``x`` and shape samples ``v``.
 
     ``omega`` is the measured circular frequency of the same mode and
-    ``n_hint`` the apparent mode order, used only to centre the search
+    ``n_hint`` the apparent mode order, used only to center the search
     bracket via the string formula.  Returns ``(T, info)`` where ``info``
     carries the fitted coefficients, the wavenumber, and the end impedance
     ratio ``Z = -T V'(L)/V(L)`` (np.inf where V(L) is numerically zero,
@@ -85,10 +61,8 @@ def fit_shape(x, v, omega, L, m, EI, n_hint=1, bracket=(0.25, 4.0),
     J = np.array([_misfit(t, x, vn, L, m, EI, omega)[0] for t in Ts])
     i = int(np.argmin(J))
     if i in (0, ngrid - 1):
-        # The minimum lies on the bracket edge, so the bounded refinement
-        # below would search the wrong interval and return a plausible but
-        # wrong tension. This is what happens when ``n_hint`` does not match
-        # the mode actually supplied, since the hint centres the bracket.
+        # A minimum on the bracket edge means n_hint does not match the
+        # supplied mode; the bounded refinement would return a wrong tension.
         raise ValueError(
             "fit_shape: minimum on the bracket edge (n_hint=%d); widen "
             "`bracket` or pass the mode order actually measured" % n_hint)

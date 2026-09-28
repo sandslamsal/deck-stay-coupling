@@ -1,54 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Sensitivity of the shape-fit tension estimator, one factor at a time.
+"""Sensitivity of the shape-fit tension method, one factor at a time.
 
-The shape-fit estimator (src/shapefit.py) is exact at the crossing when it
-is fed the truth.  This study asks what it costs when it is not: fewer
-sensors, a mis-measured chord, a wrong bending stiffness, a wrong mass per
-metre, and shape noise.  Everything is run on the worked bridge of
-run_identify2.py at the mode-1 crossing tension T = 151.6 kN, where the
-incumbent frequency method is at its worst, so the question is whether the
-repair survives its own input errors there.
-
-Factors, varied one at a time about the baseline (9 sensors, exact
-parameters, no noise):
-
-    nsens      3, 5, 7, 9, 15 sensors equally spaced over the chord,
-               always including the anchorage end (and the pylon end),
-               indexed exactly as run_identify2.py indexes them.  With 3
-               sensors the 4-column basis of fit_shape is underdetermined,
-               the misfit is identically zero at every trial tension, and
-               the tension is unidentifiable; that case is recorded as NaN
-               rather than as whichever number floating point happens to
-               prefer.
-    chord_pct  chord length used by the fit in error by -2, -1, +1, +2 %.
-               A chord error is a scale error of the whole geometry: the
-               engineer lays sensors out at fractions of the assumed chord,
-               so both the sensor coordinates and L are scaled by (1+e).
-               (Passing a wrong L with CORRECT sensor coordinates does
-               nothing at all: L enters the basis only through the column
-               scaling exp(-pL) of the anchorage evanescent term, which the
-               least squares absorbs exactly.)  Expected, in the string
-               limit: the fitted wavenumber scales as 1/(1+e), so
-               T ~ m omega^2 / k^2 scales as (1+e)^2, i.e. err ~ 2e.
-    EIc_pct    bending stiffness passed to the fit in error by -20, +20 %.
-               Expected small: xi = L sqrt(T/EI) = 89, and at fixed fitted
-               k the dispersion gives dT = -k^2 dEI, i.e. -0.025 % of T for
-               +20 % of EI.
-    mc_pct     mass per metre in error by -2, +2 %.  The dispersion
-               relation is homogeneous in (T, EI, m omega^2): the shape
-               fixes k, and T = (m omega^2 - EI k^4)/k^2 is LINEAR in m.
-               So a mass error translates 1:1 into a tension error (to the
-               0.13 % bending correction), and that expected 1:1 line is
-               printed next to the computed one as a check.
-    sigma_s    shape noise, 0.5, 1, 2 % of the peak amplitude per sensor,
-               100 reps at 9 sensors, frequency exact (one factor at a
-               time).  Reported as bias (mean error) and RMSE.
-
-Writes data/sensitivity.csv, long format:
-    factor, level, metric, value_pct
-with metric in {err_pct, expected_err_pct, bias_pct, rmse_pct} and, for
-sigma_s, level in fraction-of-peak units (0.005, 0.01, 0.02).
-
+Runs src/shapefit.py on the example bridge of run_identify2.py at the mode-1
+crossing tension T = 151.6 kN, about a baseline of 9 sensors, exact parameters
+and no noise. Factors: sensor count, chord length (geometry scale error),
+bending stiffness EI_c, mass per length m_c, and shape noise. Writes
+data/sensitivity.csv in long format (factor, level, metric, value_pct).
 Run:  python3 scripts/run_sensitivity.py
 """
 
@@ -69,7 +26,7 @@ from shapefit import fit_shape         # noqa: E402
 
 DATA = os.path.join(ROOT, "data")
 
-# the worked bridge of run_identify2.py, at the mode-1 crossing tension
+# the example bridge of run_identify2.py, at the mode-1 crossing tension
 BRIDGE = dict(Ld=80.0, EId=2.0e9, md=1000.0,
               Lc=25.0, EIc=1.2e4, mc=5.5, EA=1.4e8,
               theta=np.deg2rad(35.0), nd=40, nc=40)
@@ -85,8 +42,8 @@ NREP = 100
 
 
 def observe_mode1(T_true, bridge):
-    """Mode-1 stay-branch frequency and shape, exactly as run_identify2
-    observe() produces them (n = 1 case of its MAC branch matching)."""
+    """Mode-1 stay-branch frequency (Hz), chord coordinates (m) and shape,
+    matched by MAC to sin(pi x / L) as in run_identify2.observe()."""
     cd = CableDeck(T=T_true, **bridge)
     f, Phi = cd.modes(60)
     cdofs = np.array(cd.cable_dofs())
@@ -110,8 +67,7 @@ def sensor_idx(npoints, nsens):
 
 
 def try_fit(xs, vs, omega, L, m, EI):
-    """fit_shape wrapped so a degenerate or bracket-edge case returns NaN
-    instead of a plausible-looking number."""
+    """fit_shape, returning NaN when the fit is underdetermined or fails."""
     ncols = 4 if np.isfinite(EI) and EI > 0 else 2
     if len(xs) <= ncols:
         return np.nan, "underdetermined (%d sensors, %d basis columns)" % (

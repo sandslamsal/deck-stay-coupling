@@ -1,18 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Figure: the closed form, the collapse onto it, and the screening criterion.
+"""Figure: the closed form, the parametric study, and the screening criterion.
 
-Three panels at the printed width of the cas-sc single column.
-
-  (a)  the tension error of the isolated-cable inversion against relative
-       detuning, with the closed form drawn for three values of the split.
-       Shows the shape of the law: a peak of height s at an exact crossing,
-       decaying as s^2/(2|d|).
-  (b)  measured against predicted over the campaign, coloured and marked by
-       stay mode order.  The collapse is the claim, and separating the
-       orders is what shows the 1/n factor is carrying its weight.
-  (c)  the screening criterion, the detuning required to hold the error
-       within a tolerance, against mu_eff, one family per tolerance.  This is
-       the panel an engineer uses.
+(a) closed-form tension error against relative detuning for three splits;
+(b) finite element error against the closed form, by stay mode order;
+(c) detuning needed to hold the error within a tolerance, against mu_eff.
+Reads data/campaign.csv; writes fig_collapse.png and fig_collapse.pdf to OUT.
 
 Run:  python3 scripts/fig_collapse.py
 """
@@ -34,7 +26,7 @@ from cablefe import veering_split  # noqa: E402
 
 import matplotlib.pyplot as plt  # noqa: E402
 
-OUT = os.path.join(ROOT, "revision 1", "sources", "figures")
+OUT = os.environ.get("FIGURE_DIR", os.path.join(ROOT, "figures"))
 
 
 def main():
@@ -95,9 +87,7 @@ def main():
     F.clean(ax3)
     ax3.legend(loc="upper left", fontsize=F.FS_SMALL, labelspacing=0.22,
                borderaxespad=0.1)
-    # The mode order the family is drawn for goes in the caption, not on the
-    # axes: every placement here clipped the 2 per cent curve, and the house
-    # rule is that no label sits over data.
+    # curves are for theta = 35 deg and n = 1
     F.panel(ax3, "c", "screening criterion")
 
     fig.subplots_adjust(left=0.075, right=0.995, bottom=0.19, top=0.86,

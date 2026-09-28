@@ -1,39 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Jindo: the predicted spread truncated to the window the measurement covers.
+"""Jindo: predicted branch spread truncated to the measured frequency window.
 
-WHY THIS EXISTS
----------------
-`validate_jindo.py` compares a MEASURED spread of the identified branch group,
-9.41 to 14.98 per cent of the decoupled 9.02 Hz depending on which branches are
-taken as bright, against a PREDICTED sqrt(sum_i s_i^2) that counts every stay,
-however detuned.  Those two are not the same quantity.  The measured branch list
-is truncated: the thesis identifies nine modes between 8.63 and 11.18 Hz, while
-stays 10, 11 and 12 sit at 8.29, 7.75 and 6.81 Hz and stays 1 to 7 at 11.6 to
-18.9 Hz, so the branches those stays dominate fall outside the identified window
-and never enter the measured sum.  Comparing a truncated measurement with an
-untruncated prediction understates the prediction's agreement, and it is the
-comparison a referee will query.
-
-WHAT THIS SCRIPT DOES
----------------------
-It applies the measurement's own truncation to the prediction.  The bordered
-pencil is solved for each width variant, exactly as in `validate_jindo.step3`,
-giving branch frequencies and the bright (structure) fraction of each.  The
-spread is then formed the same way on both sides,
-
-    spread = sqrt( sum_k b_k (lambda_k - lambda_0)^2 ) / lambda_0 ,
-    lambda = f^2,  lambda_0 = 9.02^2,  b_k the bright fraction, renormalised
-    over whichever branches are kept,
-
-first over the whole predicted branch list, which must reproduce
-sqrt(sum_i s_i^2) and is the self-check, and then over only those predicted
-branches lying inside the measured window.  The truncated figure is the one
-comparable with the measurement.
-
-Nothing is fitted.  The window is the thesis's own identified range and the
-widths are those `validate_jindo.py` already writes to data/jindo.csv.
-
-Output: printed report and data/jindo_window.csv.
+For each width variant the bordered pencil gives branch frequencies and bright
+fractions b_k. The spread sqrt(sum_k b_k (lambda_k - lambda_0)^2) / lambda_0,
+with lambda = f^2 and b_k renormalized over the kept branches, is formed over
+all branches (it reproduces sqrt(sum_i s_i^2)) and over the branches inside
+the identified window of Caetano (2001). Widths are read from data/jindo.csv.
+Writes data/jindo_window.csv.  Run:  python3 scripts/jindo_window.py
 """
 
 from __future__ import annotations
@@ -47,8 +20,9 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(os.path.dirname(HERE), "data")
 
-# Values transcribed from Caetano (2001), PhD thesis, University of Porto, Chapter 7 (Jindo 1:150 model). They are not redistributed with
-# this code: they live in data/external/jindo_window_data.py (see README).
+# Values transcribed from Caetano (2001), PhD thesis, University of Porto,
+# Chapter 7 (Jindo 1:150 model). They are not redistributed with this code:
+# they live in data/external/jindo_window_data.py (see README).
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), "data", "external"))
 try:
@@ -91,9 +65,9 @@ def load():
 
 
 def bordered_branches(f0, f_stays, s_list):
-    """N+1 branches of one structure mode coupled to N stays; same as
-    validate_jindo.bordered_branches, repeated here so this script stands alone.
-    Returns (frequencies ascending, bright fraction of each)."""
+    """N+1 branches of one structure mode coupled to N stays (as in
+    validate_jindo.bordered_branches). Returns (frequencies ascending, bright
+    fraction of each)."""
     n = len(f_stays)
     A = np.zeros((n + 1, n + 1))
     A[0, 0] = f0 ** 2
@@ -107,11 +81,10 @@ def bordered_branches(f0, f_stays, s_list):
 
 
 def spread(f, b, f0=F0, window=None):
-    """sqrt(weighted variance of lambda about lambda_0)/lambda_0, in per cent.
+    """sqrt(weighted variance of lambda about lambda_0)/lambda_0, in percent.
 
-    `b` is renormalised over the kept branches, which is what truncating an
-    identified list does: the analyst sees only those modes and weights them
-    against each other. Returns (spread %, weight kept, n branches)."""
+    `b` is renormalized over the branches inside `window` (all if None).
+    Returns (spread %, bright weight kept, number of branches kept)."""
     lam, lam0 = f ** 2, f0 ** 2
     keep = np.ones_like(f, dtype=bool) if window is None else (f >= window[0]) & (f <= window[1])
     w = b[keep]
@@ -169,10 +142,8 @@ def main():
             rec("window", "%s / %s" % (label, tag), "branches_kept", ntr, "-")
         print()
 
-    # ---- sensitivity to where the window is drawn -----------------------
-    # The two-route pencil puts a bright branch at 8.60 Hz, 0.03 Hz below the
-    # identified lower edge, so the strict window is knife-edge on that branch.
-    # Widening the window in steps settles whether the comparison depends on it.
+    # --- sensitivity to the window edges ---
+    # the two-route pencil has a bright branch at 8.60 Hz, just below the lower edge
     print("=" * 78)
     print("SENSITIVITY TO THE WINDOW EDGES")
     print("=" * 78)

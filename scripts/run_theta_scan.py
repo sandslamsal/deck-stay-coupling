@@ -1,51 +1,13 @@
 # -*- coding: utf-8 -*-
-"""What inclination adds that a rig at theta = 0 cannot show.
+"""Effect of stay inclination theta on the splitting at a crossing.
 
-WHY THIS EXISTS
----------------
-The laboratory rig that carries an independently applied tension sits at
-theta = 0: the host's motion at the anchorage is perpendicular to the stay
-axis. A reviewer is entitled to ask what an inclined stay does that the rig
-therefore cannot show, and the honest answer needs a computation rather than
-an assertion.
+For a straight stay (g = 0) on the example bridge, holds everything but theta
+and compares the finite-element minimum separation s_FE with the closed form
+s_law for stay orders 1 and 2. Inclination enters through cos(theta) and
+through the anchorage spring (EA / L_c) sin^2(theta), which stiffens the host
+and changes phi_a. Writes data/theta_scan.csv.
 
-WHAT IT FINDS
--------------
-For a STRAIGHT stay, inclination acts in exactly two ways, and neither is a
-new hypothesis about how coupling works.
-
-1. The explicit cos(theta). The anchorage motion resolves onto the chord,
-   w_d cos(theta) across it and w_d sin(theta) along it. That is a vector,
-   drawn in Fig. 1d.
-
-2. The host changes. The stay's axial restraint reaches the deck as a
-   vertical spring of stiffness (EA / L_c) sin^2(theta) at the anchorage
-   (``CableDeck2D.host_alone``), so inclining the same stay stiffens the deck
-   under it. Over 0 to 65 degrees on the worked bridge that raises the host
-   frequency from 3.12 to 3.64 Hz and the mass-normalised ordinate at the
-   anchorage by 15 per cent. This is not a coupling effect at all: it is the
-   host eigenproblem the screen already has to solve, and phi_a is read from
-   it.
-
-Because the second effect is there, the width does NOT simply scale as
-cos(theta): at 65 degrees it is 15 per cent above cos(theta) times its value
-at theta = 0. The closed form carries both effects, since it takes phi_a from
-the actual host, and this script checks that it does: everything but theta is
-held - the same deck, anchorage station, stay length, mass, axial and bending
-stiffness - and a straight stay's own frequency does not depend on theta, so
-the crossing sits at the same tension throughout.
-
-WHAT IT IS FOR
---------------
-If the closed form tracks the finite element across the range, then the rig's
-theta = 0 measurement fixes the absolute scale of the tie route against an
-independently applied tension, and the theta dependence is carried by a
-vector resolution and a host eigenproblem rather than by any untested
-dynamics. What then remains unmeasured is the SECOND route of Eq. (rn),
-which needs sag as well as inclination and which vanishes as sin(theta) -> 0.
-That is a sharper statement of the gap than "the rig is not inclined".
-
-Output: printed table and data/theta_scan.csv.
+Run:  python3 scripts/run_theta_scan.py
 """
 
 from __future__ import annotations
@@ -72,7 +34,7 @@ ORDERS = (1, 2)
 def traverse(make, Ts, n):
     """Minimum relative separation of the two lines nearest stay order n
     along a tension traverse; returns (s, T_at, model). Same rule as
-    run_sag.traverse, repeated here so this script stands alone."""
+    run_sag.traverse."""
     best = (np.inf, None, None)
     for T in Ts:
         cd = make(T)
@@ -115,7 +77,7 @@ for n in ORDERS:
         probe = CableDeck2D(T=2.0e5, g=0.0, theta=th, **BRIDGE)
         fi = probe.stay_alone(n + 1)[n - 1]
         fh, _ = host_ordinate(probe, fi)
-        # T scales as f^2 for a taut stay, so centre the sweep on the host
+        # T scales as f^2 for a taut stay; center the tension range on the host
         T_c = 2.0e5 * (fh / fi) ** 2
         Ts = np.linspace(0.80 * T_c, 1.25 * T_c, 90)
         s_fe, T_at, cd = traverse(make, Ts, n)

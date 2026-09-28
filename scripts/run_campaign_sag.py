@@ -1,26 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Revision 1: the campaign re-solved with the stay drawn along its sagged
-profile at its own gravity, and the two-route law tested on it.
+"""Designs re-solved with the stay on its sagged profile; two-route law test.
 
-The 699 admissible designs of data/campaign.csv were computed with a
-straight chord. Drawing the sag (src/cablefe2d.py) adds a second route
-from the deck to the stay: the along-chord component of the anchorage
-motion stretches a sagged cable, which excites its symmetric modes through
-the dynamic tension, and the reciprocal force pulls on the deck along the
-chord. For odd stay orders that route stands in the ratio
-
-    r_n = (2 / (n^2 pi^2)) sin(theta) (EA / T) (m g L / T)
-
-to the transverse tie, with the opposite sign for a stay hanging below its
-chord, so the width at exact tuning is the straight-chord width times
-|1 - r_n|; for even orders the route vanishes. This script solves every
-design once in the sagged model at its own tension and gravity, reads the
-error of the incumbent inversion on the stay-dominated branch, removes the
-sag-and-bending bias of the isolated sagged stay, and tests the extended
-law against the residual, beside the straight-chord law.
-
-Writes data/campaign_sag.csv.
-
+Solves every design of data/campaign.csv in the sagged model (src/cablefe2d.py)
+at its own tension and gravity, removes the bias of the isolated sagged stay,
+and compares the straight-chord law with the extended law of width s |1 - r_n|,
+where r_n = (2 / (n^2 pi^2)) sin(theta) (EA / T) (m g L / T) for odd stay
+orders n and r_n = 0 for even n. Writes data/campaign_sag.csv.
 Run:  python3 scripts/run_campaign_sag.py      (about three minutes)
 """
 from __future__ import annotations
@@ -120,7 +105,7 @@ def main():
     g = c[(c.mac > 0.5) & (c.xi > 150) & (c.share > 0.5) & c.eps_coupling_sag.notna()]
     y = g.eps_coupling_sag.abs()
     print(f"\ngraded and resolved in the sagged model: {len(g)} of 421")
-    print(f"  straight-chord law (the submitted one), on the SAGGED errors: R2 = {r2(y, g.eps_pred_straight_dsag):.4f}")
+    print(f"  straight-chord law, on the sagged errors:               R2 = {r2(y, g.eps_pred_straight_dsag):.4f}")
     print(f"  extended law, s |1 - r_n|:                              R2 = {r2(y, g.eps_pred_ext):.4f}")
     for lab, sub in (("even orders (no elastic route)", g[g.n_stay % 2 == 0]),
                      ("odd orders", g[g.n_stay % 2 == 1]),
@@ -134,8 +119,8 @@ def main():
                   f" median |res_ext| = {100*np.median(np.abs(yy - sub.eps_pred_ext)):.3f} pp")
     ratio = (g.eps_coupling_sag.abs() / g.eps_coupling.abs().clip(lower=1e-6))
     print(f"  sagged/straight coupling error, graded: median {ratio.median():.2f}, 10th {ratio.quantile(.1):.2f}, 90th {ratio.quantile(.9):.2f}")
-    print(f"  worst sagged coupling error: {100*y.max():.2f} % (straight campaign worst 5.09 %)")
-    # the screen at 2 % with each law, against the sagged truth
+    print(f"  worst sagged coupling error: {100*y.max():.2f} % (straight-chord model worst 5.09 %)")
+    # screening at 2 % tolerance with each law, against the sagged errors
     for lab, s_use in (("straight s", g.s), ("s |1 - r_n|", g.s_ext)):
         passes = np.abs(g.d_sag) >= (s_use ** 2 - 0.02 ** 2) / (2 * 0.02)
         unsafe = y > 0.02

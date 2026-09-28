@@ -1,37 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Revision 1, R1.6: a single-sensor rule against branch mis-assignment.
+"""Single-sensor rule against branch mis-assignment near a crossing.
 
-Section 6 reports that inside a 2.18 kN window around the crossing of the
-worked bridge the taller peak is the deck-rooted one, so that a field pick
-of the fundamental takes the wrong branch and doubles the bias. The rule
-tested here needs nothing but the same stay-mounted spectrum.
+For each tension across the example bridge's crossing, orders two to five of
+the screened stay spectrum give a tension and an implied isolated fundamental.
+The rule flags a crossing when no peak lies within TOL/2 of that fundamental,
+and it is scored against the error of the fundamental-only reading.
 
-    1. Read orders two to five and fit them (multi-mode, Section 6). The
-       coupling falls as 1/n, so this tension is nearly unbiased, and it
-       implies an isolated fundamental f1_implied.
-    2. Compare the picked fundamental with f1_implied. The deviation IS the
-       displacement a crossing has imposed, whichever branch was picked,
-       and its sign says which. If no peak sits within half the tolerance
-       of f1_implied (a tension tolerance tol is a frequency tolerance
-       tol/2), the fundamental is at a crossing and no single pick is
-       safe: the tension is taken from step 1.
-
-So the rule does not assign the branch. It makes the assignment
-unnecessary, and it flags a crossing from the record alone. A first
-version of this script tested "f1_implied lies between the two peaks",
-which is true almost everywhere because repulsion always places the
-isolated frequency between the stay branch and the deck line; that test
-discriminates nothing and was dropped.
-
-The worked bridge is traversed through its crossing. At each tension the
-coupled modes are solved, the stay-mounted spectrum's peaks are screened
-by the harmonic comb exactly as scripts/run_identify2.py does, orders two
-to five are fitted, and the rule is scored against the true error of the
-fundamental-only reading on the stay branch and on the taller peak.
-
-Writes data/misassign_rule.csv.
-
-Run:  python3 scripts/run_misassign_rule.py
+Writes data/misassign_rule.csv.  Run:  python3 scripts/run_misassign_rule.py
 """
 from __future__ import annotations
 
@@ -53,8 +28,8 @@ DATA = os.path.join(ROOT, "data")
 BRIDGE = dict(Ld=80.0, EId=2.0e9, md=1000.0,
               Lc=25.0, EIc=1.2e4, mc=5.5, EA=1.4e8,
               theta=np.deg2rad(35.0), nd=40, nc=40)
-BAND = (2.6, 4.2)                     # the crossing sits here
-WINDOW = (146.3e3, 157.0e3)           # the mis-assignment window of Section 6
+BAND = (2.6, 4.2)                     # Hz, band that holds the crossing pair
+WINDOW = (146.3e3, 157.0e3)           # N, where the taller peak is the deck branch
 TOL = 0.02                            # tension tolerance the rule is scored at
 
 

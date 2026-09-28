@@ -1,31 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Validation against measured data: the Ponte del Mare footbridge, Pescara.
+"""Screening criterion against the measured Ponte del Mare footbridge, Pescara.
 
-Kumar (2011) reports ambient-vibration identification of a curved twin-deck
-cable-stayed footbridge, giving both halves of what this study needs on one
-structure: a stay schedule with measured transverse frequencies for four
-instrumented stays, and the identified global modal frequencies of the deck.
-Independently of anything here, that work reports detecting a deck-cable
-interaction "between one of the longest cables and the first global mode".
-
-That makes the bridge a test of the screening criterion on measured data:
-the criterion is evaluated blind from the published schedule, and the stay
-it flags is compared with the stay the original authors found interacting.
-
-Three quantities are computed, in decreasing order of how much they assume.
-
-  1. Harmonicity of each stay's own frequency series, f_n/n. This needs no
-     assumption at all. A taut isolated stay gives a constant; bending
-     stiffness makes it rise with n; sag lifts the first mode above the
-     rest; and coupling displaces whichever mode sits near a deck frequency.
-  2. Detuning d of every stay mode against every identified deck mode.
-     This is exact from the measured frequencies, and it is the quantity the
-     criterion screens on.
-  3. The veering width s implied by the observed first-mode anomaly, and the
-     effective mass ratio it corresponds to. This is an inversion, reported
-     with its confound stated, because sag lifts the first mode too.
-
-Data: Kumar, A. (2011), PhD thesis, University of Trento, Tables 4.4 and 5.6.
+Data: Kumar (2011), PhD thesis, University of Trento, Tables 4.4 and 5.6.
+Computes the harmonicity f_n/n of each instrumented stay, the first-mode
+anomaly against the tension from modes 2 to 5, and the detuning of every stay
+mode against the nearest identified deck mode. Reads
+data/external/validate_pontedelmare_data.py; writes data/pontedelmare.csv.
 
 Run:  python3 scripts/validate_pontedelmare.py
 """
@@ -44,13 +24,11 @@ sys.path.insert(0, os.path.join(ROOT, "src"))
 
 DATA = os.path.join(ROOT, "data")
 
-# ---------------------------------------------------------------------------
-# measured data, transcribed from the source tables
-# ---------------------------------------------------------------------------
+# --- measured data, transcribed from Kumar (2011) ---
 
 # Table 4.4: instrumented stays, peak-picked transverse frequencies
-# Values transcribed from Kumar (2011), PhD thesis, University of Trento (Ponte del Mare footbridge). They are not redistributed with
-# this code: they live in data/external/validate_pontedelmare_data.py (see README).
+# Values transcribed from Kumar (2011) are not redistributed with this code:
+# they live in data/external/validate_pontedelmare_data.py (see README).
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), "data", "external"))
 try:
@@ -77,11 +55,9 @@ def harmonicity(f):
 
 
 def tension_from_high_modes(f, L, m, orders=(2, 3, 4, 5)):
-    """Tension from the higher modes, which sag and coupling perturb least.
+    """Tension from modes 2 to 5, which sag and coupling perturb least.
 
-    Sag raises the first symmetric mode and leaves the antisymmetric and
-    higher modes close to the taut-string values, so a fit that omits mode 1
-    is the appropriate reference against which to judge mode 1.
+    Returns (T, c), with c the least-squares slope of f_n = c n in Hz.
     """
     idx = [o - 1 for o in orders]
     n = np.array(orders, dtype=float)
@@ -91,7 +67,7 @@ def tension_from_high_modes(f, L, m, orders=(2, 3, 4, 5)):
 
 
 def irvine_lambda2(L, T, m, theta, EA):
-    """Irvine parameter, the measure of how far a stay is from a string."""
+    """Irvine parameter lambda^2 and sag ratio d/L of an inclined stay."""
     H = T * np.cos(theta)
     Lh = L * np.cos(theta)
     d = m * G * Lh ** 2 / (8.0 * H)
@@ -121,8 +97,7 @@ def main():
         T, c = tension_from_high_modes(f, L, m)
         f1_pred = c                                  # n = 1 on the fitted line
         anom = 100.0 * (f[0] - f1_pred) / f1_pred
-        # sag needs an inclination; the mast is tilted and the decks curved,
-        # so a representative range is carried rather than one value
+        # representative 30 deg inclination; the mast is tilted and the decks curved
         A = m / RHO
         lam2, sag = irvine_lambda2(L, T, m, np.deg2rad(30.0), E_STEEL * A)
         print("   %-5s %10.1f %10.3f %10.3f %+9.1f %% %8.2f"

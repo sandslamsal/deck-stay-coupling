@@ -1,24 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Ponte del Mare, full analysis: measured pulls, sag closure, and mu_eff.
+"""Ponte del Mare: measured pulls, sag closure, and mu_eff.
 
-Sources, all from Kumar (2011):
-  Table 4.4  (thesis p.81) : peak-picked stay frequencies, five orders
-  Table 5.5  (thesis p.126): SISTRAL-measured pulls per stay, 01/12/2009,
-                             with the string-formula frequency of each pull
-                             (the exact isolated reference)
-  Table 5.3  (thesis p.115): stay materials: E = 165 GPa, rho = 8289 kg/m3
-  Fig 4.13/Table 5.6       : identified global modes
-  Fig 4.14   (thesis p.79) : global mode shapes, per-deck vertical ordinates
-
-Five analyses:
-  A  tension from orders 2-5 against the measured pull      (protocol works)
-  B  tension from the fundamental alone against the pull    (protocol fails)
-  C  sag closure of the fundamental anomaly, with theta bands
-  D  the detuning screen across all twenty stay modes
-  E  mu_eff: predicted veering widths for the three coincidences, against
-     what the record shows, including the discriminating N7E null
-
-Run:  python3 scripts/validate_pontedelmare2.py
+Uses stay frequencies, SISTRAL-measured pulls, stay material and global
+modes from Kumar (2011), Tables 4.4, 5.3, 5.5 and 5.6 and Figs. 4.13-4.14.
+Prints tension from orders 2-5 and from the fundamental against the pull
+(A, B), sag closure of the fundamental anomaly (C), the detuning screen (D),
+and predicted veering widths from mu_eff (E).
+Run: python3 scripts/validate_pontedelmare2.py
 """
 from __future__ import annotations
 import os
@@ -28,11 +16,11 @@ import numpy as np, pandas as pd, os
 G = 9.80665
 RHO_STAY = 8289.0
 
-# stay: L, m, five picked f's (T4.4), SISTRAL pull kN + string f (T5.5),
-# inclination band deg (from plan geometry; mast tilt 11 deg, no elevation
-# drawing exists, so bands are carried, not points)
-# Values transcribed from Kumar (2011), PhD thesis, University of Trento (Ponte del Mare footbridge). They are not redistributed with
-# this code: they live in data/external/validate_pontedelmare2_data.py (see README).
+# STAYS: L, m, five picked f (Table 4.4), SISTRAL pull in kN and string f
+# (Table 5.5), and an inclination band in degrees from the plan geometry.
+# Values transcribed from Kumar (2011), PhD thesis, University of Trento
+# (Ponte del Mare footbridge). They are not redistributed with this code;
+# they live in data/external/validate_pontedelmare2_data.py (see README).
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), "data", "external"))
 try:
@@ -97,7 +85,7 @@ print()
 print("="*84)
 print("E  mu_eff: prediction against observation at the three coincidences")
 print("="*84)
-# Fig 4.14 ordinates (normalised to unit maximum) at each anchorage, with
+# Kumar Fig. 4.14 ordinates (normalized to unit maximum) at each anchorage, with
 # read bands; modal masses banded from the deck construction (55 mm slab +
 # steel truss + finishes, both decks 148-173 m): M_modal = 40-160 t for
 # single-deck modes, 80-250 t when both decks move.

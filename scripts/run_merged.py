@@ -1,76 +1,11 @@
 # -*- coding: utf-8 -*-
-"""The merged-peak bias: what the analyst reads when the pair does not split.
+"""Tension error read from a merged peak, when a veering pair does not resolve.
 
-Everything the paper says about the tension error assumes the analyst sees
-two hybrid branches and picks one.  Appendix B then says that at realistic
-damping most designs do NOT show two peaks: the pair merges, the spectrum
-carries one resonance, and the branch law describes a frequency nobody
-measured.  This script asks what that single peak is worth.  The short
-answer is that it is worse than the branch law, not better, in three
-separate ways, none of which the branch law contains.
-
-PART A, analytical.  Appendix B is generalised from equal to unequal
-residues,
-
-    H(x) = A1/(x + u + i) + A2/(x - u + i),      rho = A2/A1 >= 0,
-    x = (w - w0)/(zeta w0),   u = s/(2 zeta),
-
-with the pole at x = -u the lower branch, matching the appendix.  Writing
-S = 1 + rho and D = rho - 1,
-
-    |H|^2 = [ (S x + u D)^2 + S^2 ] / [ (x^2 - 1 - u^2)^2 + 4 x^2 ] ,
-
-which is Eq. (app-H2) at rho = 1.  The stationary points solve a quintic,
-built here by polynomial arithmetic and solved by its roots, cross-checked
-against a dense scan.  At rho = 1 it factors and the maximum is exactly
-
-    x*^2 = u sqrt(u^2 + 4) - 1 ,
-
-which is real precisely when u^4 + 4u^2 - 1 > 0: the two peaks and the dip
-between them appear at the SAME threshold, so Appendix B's dip criterion is
-also the criterion for the peak to leave the centre.  The two required
-limits hold, and are verified numerically:
-
-    u -> infinity   x* -> +-u, the branch with the larger residue;
-    u -> 0          x* -> u (rho-1)/(rho+1), the residue-weighted mean.
-
-Between them the peak does NOT interpolate.  It overshoots: |x*|/u exceeds
-1 for u > 0.714 and reaches 1.118 at u = 1.154.  The reason is that at one
-resonance the other resonance contributes a real, in-phase background whose
-sign is negative on the near side and positive on the far side, so the
-observed maximum is pushed AWAY from the pair.  The merged peak therefore
-reports a tension error up to 12 % larger than the branch law, not smaller.
-Only once u falls below about 0.5 does the peak collapse toward the
-weighted mean, and for a 2-DOF veering pair the weighted mean is exactly the
-isolated stay frequency (a first-moment sum rule, proved in the code), so
-the bias would vanish there if the residues were the 2-DOF ones.
-
-PART B, numerical, where the model fixes rho instead of leaving it free, and
-where two further mechanisms appear that the two-Lorentzian model cannot
-contain.  The worked bridge of scripts/run_identify2.py is driven at the
-stay accelerometer degree of freedom (cd.cable_sensor_dof(2.0), driving
-point) with the Rayleigh damping of scripts/run_damping.py, whose
-DrivenBridge and peak census are imported rather than re-implemented so the
-two scripts cannot drift.  Over T = 140-165 kN and zeta in {0.2, 0.5, 1, 2}%
-the global maximum of |H| in the band is located to machine precision, the
-taut-string formula is inverted on it at order 1, and the result is compared
-with the stay-dominated branch, with the wrong branch (data/twosided.csv),
-and with the law of Part A at the model's own u and rho.  What the model
-adds:
-
-  * the residue ratio at the sensor is not the stay-energy ratio.  The
-    sensor sits 2 m above the anchorage, where the tie drives the stay
-    directly, so the deck-rooted branch is over-represented; the residues
-    equalise 2.4 kN ABOVE the tension at which the loci cross, and over that
-    window the taller peak belongs to the deck-rooted branch while the
-    stay-dominated branch is the other one.  The reported error changes
-    sign there, which the branch law never does;
-  * the modes outside the band contribute a quasi-static residual
-    flexibility.  It does not scale with zeta while the resonance does, so
-    its relative weight grows linearly with zeta and the peak shift it
-    causes grows as zeta^2, reaching 1 percentage point of tension error at
-    zeta = 2 %.  Its sign is a downward frequency shift on this bridge.
-
+Part A: the maximum x* of |H|^2 for H = 1/(x + u + i) + rho/(x - u + i), with
+x = (w - w0)/(zeta w0) and u = s/(2 zeta), from the roots of its stationarity
+quintic; at rho = 1, x*^2 = u sqrt(u^2 + 4) - 1. Part B: the driven worked
+bridge of scripts/run_damping.py over T = 140-165 kN and each zeta, with the
+picked peak compared with the branch errors and the Part A law.
 Writes data/merged.csv.
 
 Run:  python3 scripts/run_merged.py [--quick]
@@ -99,12 +34,10 @@ from run_damping import (BRIDGE, DrivenBridge, FBAND, NF,  # noqa: E402
 DATA = os.path.join(ROOT, "data")
 
 
-# ===========================================================================
-# PART A -- the unequal-residue two-Lorentzian model
-# ===========================================================================
+# --- Part A: unequal-residue two-Lorentzian model ---
 
 def hmag2(x, u, rho):
-    """|H|^2 for H = 1/(x+u+i) + rho/(x-u+i), vectorised in x."""
+    """|H|^2 for H = 1/(x+u+i) + rho/(x-u+i), vectorized in x."""
     x = np.asarray(x, dtype=float)
     S, D = 1.0 + rho, rho - 1.0
     num = (S * x + u * D) ** 2 + S ** 2
@@ -113,16 +46,13 @@ def hmag2(x, u, rho):
 
 
 def hmag2_direct(x, u, rho):
-    """The same thing from the definition, to check the combined form."""
+    """|H|^2 from the definition, to check hmag2."""
     x = np.asarray(x, dtype=float)
     return np.abs(1.0 / (x + u + 1j) + rho / (x - u + 1j)) ** 2
 
 
 def stationary_poly(u, rho):
-    """Coefficients (highest first) of N' Dn - N Dn', the quintic in x.
-
-    Built with polynomial arithmetic so that no expansion is done by hand.
-    """
+    """Coefficients (highest first) of N' Dn - N Dn', the quintic in x."""
     S, D = 1.0 + rho, rho - 1.0
     lin = np.array([S, u * D])                    # S x + u D
     N = np.polyadd(np.polymul(lin, lin), np.array([S ** 2]))
@@ -156,7 +86,7 @@ def xstar(u, rho):
 
 
 def xstar_scan(u, rho, n=400001):
-    """argmax by dense scan plus Brent refinement, the independent check."""
+    """argmax by dense scan plus Brent refinement, to check xstar."""
     span = u + 12.0
     g = np.linspace(-span, span, n)
     v = hmag2(g, u, rho)
@@ -170,22 +100,17 @@ def xstar_scan(u, rho, n=400001):
 def xstar_equal_closed(u):
     """Closed form at rho = 1: x*^2 = u sqrt(u^2+4) - 1 when positive.
 
-    Derived by setting D = 0 in the quintic, which factors as
-    x [ x^4 + 2 x^2 - (u^4 + 4u^2 - 1) ] = 0.  The side maxima therefore
-    exist exactly when u^4 + 4u^2 - 1 > 0, which is Appendix B's dip
-    condition: the dip and the two peaks appear together, as they must.
+    At rho = 1 the quintic factors as x [x^4 + 2 x^2 - (u^4 + 4u^2 - 1)] = 0,
+    so the side maxima exist when u^4 + 4u^2 - 1 > 0, the dip condition.
     """
     y = u * np.sqrt(u ** 2 + 4.0) - 1.0
     return np.sqrt(y) if y > 0.0 else 0.0
 
 
 def rho_from_split(d, Delta):
-    """Residue ratio (upper/lower) from the OBSERVED split and detuning.
+    """Residue ratio (upper/lower) from the observed split Delta and detuning d.
 
-    Same expression as :func:`rho_2dof`, but taking the split that is
-    actually measured, Delta = sqrt(d^2 + s^2), rather than rebuilding it
-    from the tuning split.  Handing a measured split to :func:`rho_2dof`
-    would fold the detuning in twice.
+    Same as :func:`rho_2dof`, but with the measured Delta = sqrt(d^2 + s^2).
     """
     return (Delta + d) / (Delta - d)
 
@@ -193,11 +118,7 @@ def rho_from_split(d, Delta):
 def rho_2dof(d, s):
     """Residue ratio (upper/lower) of a 2-DOF veering pair at a stay sensor.
 
-    For [[w_s^2, g], [g, w_d^2]] with half-detuning delta and coupling g,
-    the unit-norm eigenvectors have stay components a_+-^2 proportional to
-    g^2 / (g^2 + (delta -+ R)^2), R = sqrt(delta^2 + g^2), and the ratio
-    collapses to (R + delta)/(R - delta).  In relative frequency units,
-    delta -> d/2 and R -> Delta/2, so rho = (Delta + d)/(Delta - d).
+    rho = (Delta + d)/(Delta - d), with Delta = sqrt(d^2 + s^2).
     """
     Delta = np.hypot(d, s)
     return (Delta + d) / (Delta - d)
@@ -215,9 +136,7 @@ def eps_merged_law(d, s, zeta):
 
 
 def _sgn(d):
-    """+1 at d = 0, where the two branches are symmetric and the label of
-    the stay-dominated one is a convention, not a fact.  np.sign would
-    return 0 there and silently report a zero branch error."""
+    """Sign of d, taken as +1 at d = 0 (np.sign would give a zero branch error)."""
     return 1.0 if d >= 0 else -1.0
 
 
@@ -237,11 +156,9 @@ def k_factor(u, rho):
 
 
 def u_collapse(rho, lo=1e-6, hi=50.0, it=200):
-    """u at which the peak has come half way from the branch to the mean.
+    """u at which |x*|/u is half way between its u -> 0 limit |k0| and 1.
 
-    The u -> 0 limit is k0 = (rho-1)/(rho+1), not zero, so "half collapsed"
-    has to be measured against k0: the threshold is |k| = (|k0| + 1)/2.
-    Bisection; |k| is monotone in u below the repulsion hump.
+    k0 = (rho-1)/(rho+1). Bisection; |k| is monotone in u below its maximum.
     """
     k0 = abs((rho - 1.0) / (rho + 1.0))
     tgt = 0.5 * (k0 + 1.0)
@@ -272,15 +189,14 @@ def part_a(quick=False):
     print(f"combined |H|^2 vs definition, worst relative error {worst:.2e}")
     assert worst < 1e-10
 
-    # appendix form at rho = 1
+    # equal-residue form at rho = 1
     x = np.linspace(-8, 8, 1001)
     app = 4.0 * (x ** 2 + 1.0) / ((x ** 2 - 1.0 - 2.5 ** 2) ** 2 + 4 * x ** 2)
     assert np.allclose(hmag2(x, 2.5, 1.0), app, rtol=1e-12)
-    print("reduces to Eq. (app-H2) at rho = 1                    ok")
+    print("reduces to the equal-residue form at rho = 1          ok")
 
-    # roots vs scan.  At rho = 1 the two maxima are exactly equal and the
-    # maximiser is not unique, so positions are compared up to sign there
-    # and the attained maximum is compared in every case.
+    # roots vs scan; at rho = 1 the two maxima are equal, so x* is compared
+    # up to sign there, and the attained maximum is compared in every case
     worst_x = worst_v = 0.0
     cases = [(u, r) for u in (0.05, 0.2, 0.5, 0.9717 / 2, 1.0, 1.14, 2.0,
                               4.0, 10.0)
@@ -304,10 +220,9 @@ def part_a(quick=False):
           f"worst error {worst:.2e}")
     assert worst < 1e-7
     print(f"side maxima appear at u = {u_dip:.6f} "
-          f"(Appendix B dip threshold {u_dip:.6f})   ok")
+          f"(closed-form dip threshold {u_dip:.6f})   ok")
 
-    # limits.  The approach to the weighted mean is second order in u, so
-    # the tolerance is set by u^2 and the order itself is reported.
+    # limits; the approach to the weighted mean is second order in u
     print("\nlimits")
     for rho in (0.0, 0.25, 0.5, 2.0, 4.0):
         k0 = (rho - 1.0) / (rho + 1.0)
@@ -342,12 +257,12 @@ def part_a(quick=False):
         print(f"  d = {d:+.4f}  rho = {r:9.4f}   weighted mean "
               f"{xbar_rel:+.6f}  vs  d/2 = {d/2:+.6f}")
         assert abs(xbar_rel - d / 2) < 1e-12
-    print("  => in the u -> 0 limit the peak sits at f_iso and the coupling "
-          "bias is zero,\n     BUT u -> 0 needs damping of the order of the "
-          "split itself, and on the\n     way there the peak first "
-          "overshoots the branch (next block)")
+    print("  in the u -> 0 limit the peak sits at f_iso and the coupling "
+          "bias is zero;\n  u -> 0 needs damping of the order of the "
+          "split, and on the way\n  the peak first overshoots the branch "
+          "(next block)")
 
-    print("\nmerged-peak law, s = 2.338 % (worked bridge), errors in percent")
+    print("\nmerged-peak law, s = 2.338 % (example bridge), errors in percent")
     print("     d       branch    wrong  |  " +
           "  ".join(f"zeta={100*z:.1f}%" for z in ZETAS))
     for d in (-0.08, -0.04, -0.02, -0.01, -0.005, -0.002, 0.0,
@@ -359,8 +274,8 @@ def part_a(quick=False):
 
     # peak repulsion: the merged maximum overshoots the pole
     print("\npeak repulsion (equal residues): the maximum of the composite "
-          "sits OUTSIDE\n  the pole, because the in-phase tail of the other "
-          "resonance is real and\n  positive on the far side.  x*/u > 1.")
+          "sits outside\n  the pole, because the in-phase tail of the other "
+          "resonance is real and\n  positive on the far side, so x*/u > 1.")
     ug = np.geomspace(0.3, 60.0, 4000)
     kg = np.array([k_factor(float(v), 1.0) for v in ug])
     i = int(np.argmax(kg))
@@ -368,12 +283,12 @@ def part_a(quick=False):
     u_one = ug[np.argmax(kg > 1.0)]
     print(f"  x*/u crosses 1 at u = {u_one:.4f}; "
           f"x*/u = 0 at u = {np.sqrt(np.sqrt(5)-2):.4f} (the dip threshold)")
-    print(f"  at exact tuning the observed bias therefore vanishes only "
-          f"once\n  zeta > s / (2 x {np.sqrt(np.sqrt(5)-2):.4f}) = "
+    print(f"  at exact tuning the observed bias vanishes only "
+          f"when\n  zeta > s / (2 x {np.sqrt(np.sqrt(5)-2):.4f}) = "
           f"{1/(2*np.sqrt(np.sqrt(5)-2)):.3f} s, i.e. "
           f"{100*2.338e-2/(2*np.sqrt(np.sqrt(5)-2)):.2f} % damping on the "
-          f"worked bridge")
-    print("\n  half-collapse threshold: u at which |x*|/u reaches the "
+          f"example bridge")
+    print("\n  halfway threshold: u at which |x*|/u reaches the "
           "midpoint\n  between its u->0 limit |k0| and 1")
     for r in (1.0, 0.9, 0.75, 0.5, 0.3, 0.1, 0.03):
         uc = u_collapse(r)
@@ -384,10 +299,7 @@ def part_a(quick=False):
 
     # worst merged error over detuning, per zeta
     print("\n  worst |merged| over detuning (analytical, s = 2.338 %)")
-    # d = 0 is excluded: there rho = 1 exactly, the two maxima of |H| are
-    # equal, and which one a picker reports is a coin toss, so the SIGN of
-    # the error is undefined while its magnitude is not.  It is reported
-    # separately above.
+    # d = 0 is excluded: rho = 1 there, so the sign of the error is undefined
     dg = np.concatenate([-np.geomspace(3e-4, 0.3, 600)[::-1],
                          np.geomspace(3e-4, 0.3, 600)])
     rows = []
@@ -413,9 +325,7 @@ def part_a(quick=False):
     return rows
 
 
-# ===========================================================================
-# PART B -- the driven finite element bridge
-# ===========================================================================
+# --- Part B: driven finite element bridge ---
 
 def band_pair(br):
     """(i_lo, i_hi) indices of the two in-band modes of a DrivenBridge."""
@@ -426,13 +336,10 @@ def band_pair(br):
 
 
 def residue_ratio(br):
-    """rho at the sensor, as the model of Part A defines it.
+    """Residue ratio rho at the sensor, as Part A defines it.
 
-    The peak height of mode j in a receptance is phi_j(p)^2 / (2 zeta w_j^2),
-    so the Lorentzian residue is phi^2 / w^2 and NOT phi^2.  The w^-2 factor
-    is only a few percent across a pair this close, but it decides which of
-    two nearly equal peaks is the taller, which is exactly the quantity that
-    decides which branch the analyst reports.  Both are returned.
+    The receptance residue is phi^2 / w^2, not phi^2; the w^-2 factor decides
+    which of two nearly equal peaks is taller. Returns (rho, phi ratio squared).
     """
     i, j = band_pair(br)
     amp = float((br.phip[j] / br.phip[i]) ** 2)
@@ -466,9 +373,7 @@ def argmax_f(hfun, fgrid):
 def flat_width(fgrid, a, drop_db=0.1):
     """Width of the contiguous plateau within ``drop_db`` of the maximum.
 
-    A merged peak can be so flat on top that noise, not physics, decides
-    where a picker puts it.  Only the run containing the maximum is
-    measured, so a second peak elsewhere in the band is not counted.
+    Only the run containing the maximum is measured.
     """
     db = 20.0 * np.log10(a / a.max())
     i = int(np.argmax(a))
@@ -482,12 +387,7 @@ def flat_width(fgrid, a, drop_db=0.1):
 
 
 def background(br, zeta, f_at, idx_pair):
-    """Receptance of every mode OUTSIDE the pair, at one frequency.
-
-    Quasi-static and essentially damping independent: it is the residual
-    flexibility that modal analysis writes as an upper/lower residual term.
-    It is what makes the observed peak differ from the two-resonance model.
-    """
+    """Receptance at f_at of every mode outside the pair (residual flexibility)."""
     others = [k for k in range(len(br.w)) if k not in idx_pair]
     return complex(frf_subset(br, zeta, np.array([f_at]), others)[0])
 
@@ -517,9 +417,9 @@ def bisect_T(fun, lo, hi, it=30):
 
 
 def crossovers(fgrid, zetas):
-    """The three tensions that are usually assumed to coincide, and do not.
+    """Crossover tensions of the veering pair.
 
-    T_gap    closest approach of the two frequency loci (the veering centre)
+    T_gap    closest approach of the two frequency loci (the veering center)
     T_energy where the stay-dominated branch switches from lower to upper
     T_res    where the two peaks have equal height at the sensor
     T_pick   where the picked peak jumps from the lower to the upper branch
@@ -599,7 +499,7 @@ def part_b(quick=False):
             f_pick = argmax_f(lambda ff: br.frf(z, ff), fgrid)
             f_pair = argmax_f(lambda ff: frf_subset(br, z, ff,
                                                     [i_lo, i_hi]), fgrid)
-            # accelerance, which is what an ambient survey actually picks
+            # accelerance peak, as picked in an ambient survey
             f_acc = argmax_f(lambda ff: ff ** 2 * br.frf(z, ff), fgrid)
             cen = peak_census(fgrid, Hfull)
             resolved = cen["n_peaks_3db"] >= 2
@@ -655,7 +555,7 @@ def report(d, fgrid):
     print("=" * 74)
     g = d.drop_duplicates("T_true")
 
-    print("\n1. the residue ratio the model actually produces at the sensor")
+    print("\n1. residue ratio of the model at the sensor")
     print(f"  rho spans {g.rho.min():.4f} .. {g.rho.max():.4f} over "
           f"{g.T_true.min()/1e3:.0f}-{g.T_true.max()/1e3:.0f} kN")
     rel = np.abs(np.log(g.rho / g.rho_2dof))
@@ -663,15 +563,14 @@ def report(d, fgrid):
           f"{rel.max():.3f} (factor {np.exp(rel.max()):.2f}) at "
           f"T = {g.T_true.values[int(np.argmax(rel.values))]/1e3:.1f} kN, "
           f"median {np.median(rel):.3f}")
-    print("  the sensor sits 2 m above the anchorage, where the tie drives "
-          "the stay\n  directly, so the deck-rooted branch is seen far more "
-          "strongly than its\n  stay energy fraction implies: the residue "
-          "ratio is NOT the energy ratio.")
+    print("  the sensor is 2 m above the anchorage, where the tie drives "
+          "the stay\n  directly, so the deck-rooted branch appears more "
+          "strongly than its\n  stay energy fraction implies; the residue "
+          "ratio differs from the energy ratio.")
 
-    print("  the sum rule that would make a fully merged peak unbiased "
-          "needs the\n  2-DOF residues exactly; with the residues the model "
-          "actually produces,\n  the u -> 0 limit of the merged error is not "
-          "zero:")
+    print("  a fully merged peak is unbiased only with the exact 2-DOF "
+          "residues;\n  with the residues of the model, the u -> 0 limit "
+          "of the merged error\n  is not zero:")
     print(f"    residue-weighted mean of the pair, as a tension error: "
           f"{g.epsc_mean_pct.min():+.3f} .. {g.epsc_mean_pct.max():+.3f} % "
           f"(branch {g.epsc_branch_pct.min():+.3f} .. "
@@ -679,7 +578,7 @@ def report(d, fgrid):
 
     print("\n2. the merged peak against the analytical law")
     print("   x_law  two Lorentzians only (Part A, at the model's own u, rho)")
-    print("   x_pair exact two-mode receptance (no narrow-band linearisation)")
+    print("   x_pair exact two-mode receptance (no narrow-band linearization)")
     print("   x_frf  full receptance, all modes")
     for z in sorted(d.zeta.unique()):
         s = d[d.zeta == z]
@@ -691,8 +590,8 @@ def report(d, fgrid):
               f"   eps gap: law {np.abs(q.epsc_merged_pct-q.epsc_law_pct).max():.3f} %"
               f"   pair {np.abs(q.epsc_merged_pct-q.epsc_pair_pct).max():.3f} %")
 
-    print("\n2b. why the full receptance departs from the two-Lorentzian "
-          "model:\n    the residual flexibility of the modes outside the "
+    print("\n2b. departure of the full receptance from the two-Lorentzian "
+          "model:\n    residual flexibility of the modes outside the "
           "band")
     for z in sorted(d.zeta.unique()):
         q = d[d.zeta == z]
@@ -721,8 +620,8 @@ def report(d, fgrid):
     print("  a plateau wider than the bias means the reported tension is "
           "set by noise\n  as much as by the crossing.")
 
-    print("\n2d. receptance vs accelerance pick (an ambient survey picks "
-          "the latter)")
+    print("\n2d. receptance vs accelerance pick (ambient surveys pick from "
+          "the accelerance)")
     for z in sorted(d.zeta.unique()):
         q = d[d.zeta == z]
         dif = (q.eps_acc_pct - q.eps_merged_pct).values
@@ -754,7 +653,7 @@ def report(d, fgrid):
               f"wrong {ew[j]:+.3f})")
 
     print("\n4. worst merged-peak error over the grid "
-          "(taut-string order 1, vs TRUE T)")
+          "(taut-string order 1, vs true T)")
     for z in sorted(d.zeta.unique()):
         s = d[d.zeta == z]
         j = int(np.argmax(np.abs(s.eps_merged_pct.values)))
@@ -783,8 +682,8 @@ def report(d, fgrid):
               "  ".join(f"{s.loc[z].eps_merged_pct:+7.3f}" for z in zs) +
               f"     {res}")
 
-    print("\n6. crossover tensions (the branch the analyst reads switches "
-          "later than\n   the frequency loci cross)")
+    print("\n6. crossover tensions (the branch read by the analyst switches "
+          "after\n   the frequency loci cross)")
     cx = crossovers(fgrid, sorted(d.zeta.unique()))
     print(f"  closest approach of the loci   T_gap    = "
           f"{cx['T_gap']/1e3:7.3f} kN  (min gap {cx['gap_min']:.5f} Hz)")
@@ -797,9 +696,9 @@ def report(d, fgrid):
             print(f"  picked peak jumps, zeta {k.split('_')[-1]:>4} %  = "
                   f"{v/1e3:7.3f} kN")
     w = cx["T_res"] - cx["T_energy"]
-    print(f"  => over {w/1e3:.2f} kN ({100*w/cx['T_gap']:.2f} % of the "
-          f"crossing tension) the taller peak\n     is the deck-rooted "
-          f"branch while the stay-dominated branch is the other one")
+    print(f"  over {w/1e3:.2f} kN ({100*w/cx['T_gap']:.2f} % of the "
+          f"crossing tension) the taller peak\n  is the deck-rooted "
+          f"branch, not the stay-dominated branch")
 
     print("\n7. cross-checks")
     p = os.path.join(DATA, "twosided.csv")

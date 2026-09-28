@@ -1,38 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Verification of the COUPLING, which verify_cablefe.py does not cover.
+"""Verification of the cable-deck coupling term in src/cablefe.py.
 
-The six checks in ``verify_cablefe.py`` verify the components: the cable
-alone against the exact tensioned beam, the deck alone against the exact
-simply supported beam, the two limits, mesh convergence, and the decoupled
-case.  Every one of them can pass while the coupling term itself is wrong,
-because none of them exercises a coupled mode.  That is a real hole and this
-file closes it.
-
-Two independent references are used, neither of them the finite element
-model being checked.
-
-C1  EXACT TRANSCENDENTAL SOLUTION.  A taut string, pinned at the top, whose
-    bottom end is tied through a factor ``c`` to a single oscillator of mass
-    ``M`` and stiffness ``K``, has a closed-form characteristic equation.
-    Writing ``V(x) = A sin(kx)`` with ``k = omega sqrt(m/T)``, the string is
-    satisfied identically and the oscillator equation supplies
-
-        M wbb + K w = -c T V'(L),      V(L) = c w
-
-    which after eliminating ``A`` gives
-
-        sin(kL) (M omega^2 - K) - c^2 T k cos(kL) = 0.
-
-    Two limits confirm the sign convention: ``M -> infinity`` forces
-    ``sin(kL) = 0``, the fixed end, and ``M, K -> 0`` forces ``cos(kL) = 0``,
-    the free end.  The ``c^2`` is the statement that the tie transmits
-    displacement one way and force the other, so coupling strength goes as
-    the square.
-
-C2  TWO-DEGREE-OF-FREEDOM VEERING THEORY.  At exact tuning two coupled
-    oscillators of modal mass ratio ``mu`` split by a known amount.  The
-    finite element model must reproduce that split, because the split IS the
-    veering the study rests on.  If the split is wrong the bias map is wrong.
+Complements scripts/verify_cablefe.py, which checks the cable and deck alone.
+C1  finite element frequencies of a taut string pinned at the top and tied at
+    the bottom through a factor c to an oscillator (M, K), against the roots of
+        sin(kL) (M omega^2 - K) - c^2 T k cos(kL) = 0,   k = omega sqrt(m/T).
+C2  the split of the coupled pair at exact tuning must scale as c sqrt(mu).
 
 Run:  python3 scripts/verify_coupling.py
 """
@@ -57,10 +30,9 @@ from cablefe import chain  # noqa: E402
 # ---------------------------------------------------------------------------
 
 def fe_cable_oscillator(L, nc, T, m, EIc, M, K, c):
-    """Assemble the same way CableDeck does, with the deck reduced to 1 DOF.
+    """Frequencies (Hz) of the cable tied to a one-DOF oscillator.
 
-    Deliberately reuses the tie logic under test rather than reimplementing
-    it, so a sign or factor error in the constraint shows up here.
+    Uses the same tie constraint as CableDeck, so an error in it shows here.
     """
     Kc, Mc = chain(L, nc, EIc, m, T)
     nC = Kc.shape[0]
@@ -99,8 +71,7 @@ def exact_cable_oscillator(L, T, m, M, K, c, nroots=8):
         if vals[i] == 0.0:
             roots.append(ks[i])
         elif vals[i] * vals[i + 1] < 0:
-            # reject the spurious sign change across a tan pole by checking
-            # the bracket is narrow and the function is finite on both sides
+            # refine the bracketed sign change; skip it if brentq fails
             try:
                 r = brentq(g, ks[i], ks[i + 1], xtol=1e-14)
                 roots.append(r)
@@ -122,9 +93,9 @@ def check_C1():
         (25.0, 400e3, 5.5, 40000.0, 40000.0 * (2 * np.pi * 2.0) ** 2, 0.819,
          "footbridge-like, c=cos(35 deg)"),
         (25.0, 400e3, 5.5, 400.0, 400.0 * (2 * np.pi * 5.4) ** 2, 1.0,
-         "light oscillator TUNED to stay mode 1, c=1"),
+         "light oscillator tuned to stay mode 1, c=1"),
         (25.0, 400e3, 5.5, 1e12, 1e12 * (2 * np.pi * 1.0) ** 2, 1.0,
-         "very heavy oscillator, must give the fixed-end string"),
+         "very heavy oscillator, fixed-end string limit"),
     ]
     for L, T, m, M, K, c, lab in cases:
         fe = fe_cable_oscillator(L, 200, T, m, 1e-6, M, K, c)[:6]
@@ -147,19 +118,11 @@ def check_C1():
 # ---------------------------------------------------------------------------
 
 def check_C2():
-    """At exact tuning, two coupled oscillators split by a known amount.
+    """Check that the split at exact tuning scales as c sqrt(mu).
 
-    Reducing the string's participating mode to its modal mass and the tie to
-    an effective coupling, classical two-degree-of-freedom theory gives, for
-    modal mass ratio ``mu`` at exact tuning, a normalised split
-
-        (f+ - f-) / f0  =  sqrt(mu_eff)
-
-    to leading order.  What is checked here is not that constant, which
-    depends on how the effective mass is defined, but the SCALING: the split
-    must go as the square root of the mass ratio and as the tie factor ``c``.
-    A coupling implemented with the wrong power would fail this even though
-    it might match a single tuned case by accident.
+    Two-degree-of-freedom theory gives (f+ - f-) / f0 = sqrt(mu_eff) to
+    leading order. The constant depends on how the effective mass is
+    defined, so the check is on the scaling over a range of mu and c.
     """
     print()
     print("=" * 74)
@@ -195,12 +158,12 @@ def check_C2():
     ratios = np.array(ratios)
     spread = 100.0 * (ratios.max() - ratios.min()) / ratios.mean()
     print()
-    print(f"  the normalised quantity is constant to {spread:.2f} % across a")
+    print(f"  the normalized quantity is constant to {spread:.2f} % across a")
     print(f"  64x range of mass ratio and a 2x range of tie factor,")
     print(f"  mean {ratios.mean():.4f}")
     ok = spread < 5.0
     print(f"  {'PASS' if ok else 'FAIL'}  split scales as c*sqrt(mu) "
-          f"as veering theory requires")
+          f"as two-degree-of-freedom theory predicts")
     return ok
 
 
@@ -209,7 +172,7 @@ def main():
     ok &= check_C2()
     print()
     print("=" * 74)
-    print("COUPLING VERIFIED" if ok else "COUPLING IS WRONG, FIX BEFORE USE")
+    print("COUPLING VERIFIED" if ok else "COUPLING CHECK FAILED")
     print("=" * 74)
     return 0 if ok else 1
 

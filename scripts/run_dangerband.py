@@ -1,29 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Where the peak-picking bias is worst, and why it is not at zero damping.
+"""Peak-picking tension bias against damping, from a two-mode pencil.
 
-The branch law prices a resolved pair with the right branch picked. The
-merged-peak law prices the single peak left when the pair is not resolved.
-Between them lies the question this script answers: as damping rises and the
-pair closes, does the bias rise or fall?
+The worst picked-peak error over detuning is computed against u = s/(2 zeta)
+at the median split, and the seasonal swing at the example bridge's split.
+The two peaks merge below u = sqrt(sqrt(5) - 2); the worst error is
+sqrt(5)/2 times s, at u = 2/sqrt(3).
 
-It falls, once the pair has merged. The surviving maximum drifts back toward
-the isolated stay frequency, so the reading recovers as the evidence
-disappears. But it does not fall monotonically: the neighbouring resonance
-drags the peak outward first, and the worst bias sits at moderate damping,
-u = 2/sqrt(3), where it reaches sqrt(5)/2 of the branch value.
-
-That places the exposure on lightly damped stays. A bare stay before its
-dampers are fitted carries zeta of roughly 0.1 to 0.3 per cent, and against
-the population median split of 0.32 per cent that is u = 0.5 to 1.6, which
-straddles the maximum. Handover acceptance readings are taken in exactly
-that state.
-
-The whole result assumes the frequency is PICKED from a spectrum. A
-subspace or decomposition method fits modes rather than maxima and can
-separate a pair the spectrum shows as one, in which case the branch law
-returns in full.
-
-Run:  python3 scripts/run_dangerband.py
+Writes data/dangerband.csv.  Run:  python3 scripts/run_dangerband.py
 """
 
 from __future__ import annotations
@@ -40,9 +23,9 @@ sys.path.insert(0, os.path.join(ROOT, "src"))
 
 DATA = os.path.join(ROOT, "data")
 
-U_SPLIT = np.sqrt(np.sqrt(5.0) - 2.0)          # 0.48587, the dip threshold
-S_MEDIAN = 0.0032                              # population median split
-S_WORKED = 0.0234                              # worked bridge split
+U_SPLIT = np.sqrt(np.sqrt(5.0) - 2.0)          # 0.48587, u below which the two peaks merge
+S_MEDIAN = 0.0032                              # median fractional split s
+S_WORKED = 0.0234                              # split s of the example bridge
 
 
 def pencil(d, s):
@@ -66,8 +49,7 @@ def _mag(x, f, V, zeta):
 def picked_error(d, s, zeta, nf=6001, span=8.0):
     """Tension error from the maximum of |H| at the stay, T going as f^2.
 
-    Coarse scan then a golden-section refinement on the winning cell, which
-    reaches 1e-12 in frequency for a thousandth of the cost of a dense grid.
+    Coarse scan, then golden-section refinement on the best grid cell.
     """
     f, V = pencil(d, s)
     mid, sep = 0.5 * (f[0] + f[1]), f[1] - f[0]
@@ -96,7 +78,7 @@ def worst_over_detuning(s, zeta, dmax=0.03, nd=241):
 
 def main():
     rows = []
-    print("Peak-picking bias against damping, at the population median split "
+    print("Peak-picking bias against damping, at the median split "
           f"s = {100*S_MEDIAN:.2f} %\n")
     print(f"{'u = s/2z':>9} {'zeta %':>8} {'resolvable':>11} "
           f"{'worst |eps| %':>14} {'ratio to s':>11}")
@@ -117,22 +99,20 @@ def main():
           f"ratio {ws[i]/S_MEDIAN:.3f} (closed form sqrt(5)/2 = "
           f"{np.sqrt(5)/2:.3f} at u = 2/sqrt(3) = {2/np.sqrt(3):.3f})")
 
-    print("\n  the danger band: a bare stay before dampers, zeta = 0.1 to 0.3 %")
+    print("\n  bare stay without dampers, zeta = 0.1 to 0.3 %")
     for z in (0.001, 0.002, 0.003):
         u = S_MEDIAN / (2 * z)
         w = worst_over_detuning(S_MEDIAN, z)
         print(f"    zeta = {100*z:.1f} %  ->  u = {u:.2f},  worst "
               f"{100*w:.3f} % = {w/S_MEDIAN:.2f} x s")
 
-    print("\n  the worked bridge's seasonal swing, at damping a monitored "
-          "bridge actually carries")
-    print(f"    (split s = {100*S_WORKED:.2f} %; the swing quoted in the paper "
+    print("\n  seasonal swing on the example bridge, at damping ratios typical "
+          "of monitored bridges")
+    print(f"    (split s = {100*S_WORKED:.2f} %; the nominal swing "
           f"is 2s = {200*S_WORKED:.2f} %, which assumes a resolved pair)")
     for z in (0.001, 0.002, 0.005, 0.01, 0.02, 0.03):
         u = S_WORKED / (2 * z)
-        # the seasonal cycle carries the detuning through zero, so the swing is
-        # the peak-to-peak of the SIGNED picked error over the sweep, not the
-        # difference of two readings taken either side of exact tuning
+        # swing: peak-to-peak of the signed picked error over the detuning sweep
         e = np.array([picked_error(d, S_WORKED, z)
                       for d in np.linspace(-0.04, 0.04, 321)])
         ptp = e.max() - e.min()

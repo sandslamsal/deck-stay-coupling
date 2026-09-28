@@ -1,48 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Shared publication style for the cable force identification figures.
+"""Shared matplotlib style for the figures.
 
-Carried over from the composite-girder manuscript style and retuned for
-this paper.  The rules are unchanged in spirit:
-
-* figures are designed at their FINAL printed width, so type renders at
-  true size.  The manuscript is set in the ``cas-sc`` single-column class with
-  ``\\textwidth = 6.48 in``, so ``FIG_W = 6.5`` is a figure included at
-  ``width=\\linewidth`` and ``HALF_W = 3.15`` is a side-by-side panel.  A
-  figure included at ``0.8\\linewidth`` is drawn 0.8 as wide, not shrunk
-  afterwards.
-* Arial with matching sans math; 9.5 pt base type; 1.0 pt axes; outward
-  ticks; bold only for panel headings, never in running annotation.
-* a fixed entity-to-colour assignment across every figure (``ENTITY``
-  below), with line style and marker as the grayscale-safe secondary
-  encoding, so a reader who prints the paper in black and white can still
-  tell the rigid-cap curve from the computed one.
-* no legend or label is ever placed over data.
-* paired panels share scales.
-
-The size constants below are the only sanctioned type sizes, and
-:func:`audit` refuses anything smaller once the reduction applied by
-``\\includegraphics`` is taken into account.
-
-Entity registry
----------------
-Models::
-
-    rigid     vermilion  dotted     D   planar rigid-cap distribution
-    fe        black      solid      o   three-dimensional cap model
-    fit       green      dashed     s   the proposed closed form
-
-Load cases::
-
-    conc      blue       solid      o   concentric resultant
-    ecc       amber      dashed     s   eccentric resultant
-
-Sources of cap flexibility, used where the collapse onto the index is
-shown and each symbol marks which property was varied::
-
-    vary_t    blue       ^          cap depth
-    vary_kv   amber      s          pile axial stiffness
-    vary_Ec   green      D          concrete modulus
-    vary_n    magenta    v          number of piles
+Provides the rcParams (Arial with sans math, 9.5 pt base type, outward
+ticks), a fixed entity registry (ENTITY) that pairs each color with a line
+style and marker so figures stay readable in grayscale, panel headings,
+legend and note placement clear of the data, an audit for type below the
+size floor and for overlapping text, and a save routine that writes PNG and
+PDF at a fixed printed width. FIG_W and HALF_W are printed widths in inches.
 """
 
 import numpy as np
@@ -63,11 +27,11 @@ GRAY = '#9E9E9E'
 
 CYCLE = [BLACK, VERM, SKY, GREEN, PURPLE, BLUE, ORANGE, GRAY]
 
-# printed widths (in); cas-sc single column \textwidth = 6.4803 in
+# printed widths (in); the single-column text width is 6.48 in
 FIG_W = 6.5
 HALF_W = 3.15
 
-# the only sanctioned type sizes (pt)
+# type sizes (pt); audit() flags printed type below MIN_FONT
 FS_BASE = 9.5
 FS_PANEL = 10.5
 FS_TITLE = 10.0
@@ -78,7 +42,7 @@ FS_ANNOT = 7.5
 FS_SMALL = 6.8
 MIN_FONT = 6.5
 
-MATH_MIN_FS = MIN_FONT / 0.7
+MATH_MIN_FS = MIN_FONT / 0.7       # least size whose subscripts clear MIN_FONT
 
 ENTITY = {
     # what produced a number
@@ -95,8 +59,7 @@ ENTITY = {
                     label='no coupling, control',
                     label_math='no coupling, control'),
 
-    # stay mode order, the family the 1/n law separates.  Marker and dash
-    # carry the distinction so the panel survives greyscale printing.
+    # stay mode order n; marker and dash keep the orders distinct in grayscale
     'n1': dict(color=BLACK, ls='-', marker='o', label='stay mode 1',
                label_math=r'$n = 1$'),
     'n2': dict(color=VERM, ls=(0, (4, 2)), marker='s', label='stay mode 2',
@@ -132,7 +95,7 @@ def entity_label(key, fontsize=FS_LEGEND, math=None):
 
 
 def style(key, fontsize=FS_LEGEND, math=None, label=True, **over):
-    """Plot kwargs for a registered entity: colour, dash, marker, label."""
+    """Plot kwargs for a registered entity: color, dash, marker, label."""
     e = ENTITY[key]
     kw = dict(color=e['color'], ls=e['ls'], marker=e['marker'])
     if label:
@@ -153,9 +116,8 @@ def handle(key, fontsize=FS_LEGEND, math=None, **over):
 RC = {
     'font.size': FS_BASE,
     'font.family': 'sans-serif',
-    # Arial leads: macOS ships Helvetica as a .ttc from which matplotlib
-    # cannot extract the bold face, so bold requests render at regular
-    # weight and the bold panel letters silently are not bold.
+    # Arial first: matplotlib cannot extract the bold face from the macOS
+    # Helvetica .ttc, so bold text would render at regular weight.
     'font.sans-serif': ['Arial', 'Helvetica Neue', 'Helvetica', 'DejaVu Sans'],
     'mathtext.fontset': 'stixsans',
     'text.usetex': False,
@@ -248,11 +210,10 @@ def _renderer(fig):
 
 
 def _mathtext_floor(text, size):
-    """Smallest size mathtext actually renders inside this string.
+    """Smallest size mathtext renders inside this string.
 
     Matplotlib draws a script level at 0.7 of its parent and a
-    scriptscript level at 0.5, so auditing the declared size alone misses
-    every subscript in the figure.
+    scriptscript level at 0.5.
     """
     import re as _re
     smallest = size
@@ -359,10 +320,7 @@ def bbox_artists(fig, margin=0.5):
 
 
 # ---------------------------------------------------------------- geometry
-# A legend or an annotation must never sit on top of data.  These helpers
-# measure where the data actually are and drop the legend into the emptiest
-# region, which is more reliable than choosing a corner by eye and then
-# having it collide the next time the data change.
+# Helpers that place legends and notes in the emptiest region of the axes.
 
 
 def _to_axes_frac(ax, pts):
@@ -507,11 +465,8 @@ def save(fig, path_png, check=True, normalise_width=True, target_w=None):
     """Write PNG (600 dpi) and a matching vector PDF.
 
     With `normalise_width` the tight crop is padded symmetrically out to
-    `target_w` inches so every figure leaves this function at the same
-    printed width.  Without it the crop lands wherever the content happens
-    to end and \\includegraphics silently rescales each figure by a
-    different factor, which reads as inconsistent type sizes between
-    figures.  Content is never cropped.
+    `target_w` inches (default FIG_W), so every figure has the same printed
+    width and type size. Content is never cropped.
     """
     if check:
         audit(fig)

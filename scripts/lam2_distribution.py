@@ -1,30 +1,14 @@
 # -*- coding: utf-8 -*-
-"""Irvine's parameter across the graded population, in the corrected form.
+"""Irvine's parameter lambda^2 across the graded designs, chord form.
 
-WHY THIS EXISTS
----------------
-`cablefe.irvine_lambda2` was corrected during this revision. It had evaluated
-the parameter on the horizontal projection of the chord, which overstates an
-inclined cable's value by 1/cos^3(theta); it now evaluates it on the chord
-itself. The correction is recorded in that function's docstring.
+Recomputes the `lam2` column of data/campaign.csv and data/campaign_sag.csv
+from the stored geometry (L_c, T, EA, m_c, theta) with
+`cablefe.irvine_lambda2`, which evaluates the parameter on the chord. The
+column is diagnostic only; the error law does not use it. Writes
+data/lam2_distribution.csv.
 
-`data/campaign.csv` and `data/campaign_sag.csv` were written before the
-correction, so their `lam2` column is the horizontal-projection value while
-every lambda^2 quoted in the manuscript is the chord value. Nothing else
-depends on that column - the error law is computed from the finite element
-frequencies, not from lambda^2 - so the column is diagnostic only, and
-re-running the whole 421-design campaign to refresh one derived column would
-risk perturbing figures the manuscript already quotes.
-
-This script therefore recomputes the column in place from the stored geometry
-(L_c, T, EA, m_c, theta), which is all the parameter depends on, so the
-deposited data agrees with the deposited code. It then writes the
-distribution the manuscript quotes.
-
-usage:  python3 lam2_distribution.py          (patch the columns and report)
-        python3 lam2_distribution.py --dry    (report only)
-
-Output: data/lam2_distribution.csv, and the patched `lam2` columns.
+Run:  python3 scripts/lam2_distribution.py          (patch columns and report)
+      python3 scripts/lam2_distribution.py --dry    (report only)
 """
 
 from __future__ import annotations
@@ -71,8 +55,7 @@ for name in ("campaign.csv", "campaign_sag.csv"):
     if not DRY:
         d.to_csv(path, index=False)
 
-# the distribution the manuscript quotes, from the sag campaign (which carries
-# the same designs plus the sagged solution)
+# distribution from the sag campaign (same designs plus the sagged solution)
 d = pd.read_csv(os.path.join(DATA, "campaign_sag.csv"))
 if DRY:
     d["lam2"] = chord_lam2(d)

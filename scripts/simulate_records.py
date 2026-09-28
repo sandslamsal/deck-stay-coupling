@@ -1,223 +1,14 @@
 # -*- coding: utf-8 -*-
 """Synthetic acceleration records from the coupled cable-deck model.
 
-Everything the study says about identification through a crossing has so far
-been said about an analytic FRF, or about eigenvalues read straight from the
-finite element model.  A subspace or decomposition method cannot be run on
-either.  It needs a record: a sampled time series, with a stated excitation,
-a stated damping, a stated measurement chain and a stated noise floor.  This
-module produces one, so that the manuscript's claim that a method which fits
-modes "can separate a pair the spectrum shows as one" can be tested rather
-than asserted.
-
-Nothing here re-derives the physics.  The mass and stiffness matrices, the
-tie constraint, the sensor position and the Rayleigh calibration are taken
-from ``src/cablefe.py`` and ``scripts/run_damping.py`` unchanged, and the
-frequency response computed here is checked against ``DrivenBridge.frf``
-before any record is generated.
-
-WHAT IS SIMULATED
------------------
-The reduced coupled system ``M q'' + C q' + K q = F(t)`` with
-
-  * ``K``, ``M``   from :class:`cablefe.CableDeck` at the requested tension,
-    already reduced by the constraint that ties the stay foot to the deck;
-  * ``C``          classical, so the real modes diagonalise it exactly.  Two
-    models are offered.  ``rayleigh`` (default) is ``alpha M + beta K`` with
-    ``alpha``, ``beta`` placing exactly the requested ``zeta`` on both modes
-    of the hybrid pair, which is the calibration ``run_damping.py`` uses and
-    is reproduced here to the last digit so the two studies describe the same
-    structure.  ``uniform`` puts the same ``zeta`` on every mode, which is
-    the assumption most operational modal analysis benchmarks make and which
-    removes the Rayleigh model's steep rise of damping with frequency.
-  * ``F(t)``       one of two excitations, below.
-
-INTEGRATION, AND WHY
---------------------
-Modal state space, discretised exactly by zero-order hold, one second-order
-IIR section per mode, run with ``scipy.signal.lfilter``.
-
-The damping is classical by construction, so the real modes decouple the
-equations exactly and modal superposition is not an approximation but a
-change of basis; the only error is modal truncation, measured in check [3]
-and worth 4e-6 of the continuous acceleration spectrum in the band of
-interest.  Given decoupled modes, the zero-order-hold discretisation of each
-2-state modal oscillator is exact for a force held constant across each
-sample interval: unlike Newmark it has no period elongation and no
-algorithmic damping, which matters when the object of study is a 2.3 per
-cent frequency split and a 0.5 per cent damping ratio.  It is also cheap,
-because 50 second-order sections cost less per step than one dense solve on
-160 degrees of freedom.  The price of the modal form is that it is available
-only because the damping is classical; a non-classically damped model would
-need the complex modes of ``(K + i w C - w^2 M)`` or a direct integrator,
-and neither is used here.
-
-The force really is held constant across each internal sample interval,
-which is a modelling choice and not an approximation of something else: the
-excitation process IS piecewise constant, and the response is its exact
-response.  Everything the hold and the sampling do to the spectrum, the
-``sinc^2(f dt)`` of the hold and every alias the sampling folds in, is
-already contained in the discrete transfer function of the sections that
-are run, so the analytic spectrum below is written from those sections and
-is exact.  An earlier version folded the continuous spectrum instead and
-was 0.7 per cent wrong in the record variance; the Parseval check found it.
-
-EXCITATION
-----------
-``ambient``  Gaussian white noise applied as a distributed transverse load
-    on both members, uncorrelated in space as well as in time.  This is the
-    standard operational modal analysis assumption, and the spatial part of
-    it matters: a load fully correlated along the span cannot excite a mode
-    whose shape integrates to zero, so a spatially coherent idealisation
-    would silently suppress modes that a real ambient field excites.  For a
-    load delta-correlated in space the consistent nodal force covariance is
-
-        Sigma = S_d (M_deck / m_deck) + S_c (M_stay / m_stay)
-
-    because the consistent load covariance of an element is ``S`` times
-    ``\\int N^T N dx``, and for a uniform chain that integral is exactly the
-    consistent mass matrix divided by the mass per unit length.  That
-    identity is verified numerically against Gauss-Legendre quadrature of the
-    Hermite shape functions rather than assumed.  The default puts the same
-    spatial intensity on the deck and on the stay, which is the neutral
-    assumption; ``stay_load_ratio`` moves it.
-
-``pluck``  a half-sine transverse force pulse at one point on the stay,
-    the operation a stay test actually performs.  The pulse duration sets
-    the excitation bandwidth (a half sine of duration ``Tp`` is flat to
-    about ``0.5/Tp`` and first vanishes at ``1.5/Tp``); the default 0.05 s
-    is a hammer or a sharp release rather than a slow hand pull.  The two
-    excitations pose different identification problems, which is why both
-    are here: the ambient record is stationary and output-only, the pluck is
-    a transient with a deterministic input, and a method that reads one well
-    need not read the other.
-
-MEASUREMENT CHAIN
------------------
-The chain is simulated in the order a real one runs.
-
-  1. The modal equations are integrated at an internal rate
-     ``oversample * fs``.  Oversampling is not cosmetic: an accelerometer on
-     a stay driven by broadband load sees a response whose acceleration
-     spectrum does not roll off, so sampling the continuous response
-     directly at 100 Hz folds everything above 50 Hz back into the band.
-     Measured on the worked bridge, sampling straight at 100 Hz moves the
-     spectrum by up to 312 per cent at the antiresonance notch between the
-     two hybrid peaks, which is the one feature of the spectrum this study
-     cannot afford to corrupt, and by 84 per cent on average across the
-     band.  At 8x oversampling those fall to 1.4 and 0.4 per cent, or
-     0.06 dB at worst.
-  2. An anti-alias FIR low pass at ``0.4 fs``, linear phase, Kaiser window,
-     applied with ``fftconvolve`` in ``same`` mode so the group delay is
-     removed exactly, then decimation to ``fs``.  This is what a sigma-delta
-     digitiser does, and using a linear-phase FIR rather than an IIR keeps
-     the chain from introducing poles that a subspace method would identify
-     as structural modes.
-  3. Additive Gaussian sensor noise at a stated signal-to-noise ratio.  The
-     noise is added at the recorded rate, so it is white across the whole
-     recorded band; a real chain would band-limit it with the same
-     anti-alias filter, which changes only the top tenth of the band and
-     nothing in the 2.5-4.2 Hz band of interest.
-  4. Uniform quantisation over a stated full-scale range.  At the default
-     24 bits over +-2 g, and a stay responding at 5 mg RMS, the
-     quantisation noise is 97 dB below the signal.  It is immaterial, and
-     so, on this chain, is 16-bit quantisation at 49 dB down: both sit far
-     under any sensor noise worth modelling, and the sober conclusion is
-     that word length is not what limits a stay-cable ambient survey.  The
-     step is kept in the chain and its number reported because
-     "immaterial" should be a measurement and not an opinion.
-
-DEFAULTS, AND THE REASONING
----------------------------
-``fs = 100 Hz``  the anti-alias corner at 40 Hz leaves the first twelve
-    harmonics of a 3.3 Hz stay in the record, so the harmonic-comb screening
-    the study relies on has something to screen; 100 to 256 Hz is the
-    ordinary setting of a 24-bit ambient logger.
-``duration = 600 s``  ten minutes is the usual length of an ambient stay
-    record.  It is 2000 cycles of the fundamental, which is what a subspace
-    method needs for its covariances to settle, and its raw frequency
-    resolution of 1/600 Hz is a 46th of the 2.3 per cent split on the worked
-    bridge, so the record length is not what limits resolution.
-``snr_db = 20``  the broadband ratio of signal RMS to noise RMS over the
-    whole recorded band.  A good force-balance accelerometer on a stay
-    responding at a few milli-g sits nearer 50 dB and a cheap MEMS unit
-    nearer 15 dB; 20 dB is deliberately at the pessimistic end so that a
-    method which survives it survives a field record.  Broadband is not
-    in-band, and on this model the gap is large: a spatially white load
-    excites the stay's higher harmonics as hard as its first, so only 0.26
-    per cent of the recorded power falls in 2.5 to 4.2 Hz and a broadband
-    20 dB is an in-band 8.8 dB, confirmed at 8.7 dB by measuring the noise
-    on a 600 s record.  Both numbers are put in every record's
-    metadata as ``snr_db`` and ``snr_inband_db`` so that downstream work
-    states which one it means.  A real ambient field rolls off with
-    frequency and would put more of its power in the band, so the in-band
-    figure quoted here is pessimistic; that is a limitation of the white
-    idealisation, not a property of stays.
-``target RMS = 5 mg``  a stay under ordinary ambient wind and traffic.  The
-    excitation intensity is scaled to hit this RMS analytically, not
-    empirically, so that the scale factor is deterministic and the analytic
-    spectrum is comparable with the record's without a random offset.
-``mode cutoff = 3 fs/2``  every mode below 150 Hz, 50 of the 160.  Keeping
-    the other 110 would change the continuous acceleration spectrum in the
-    band by 4e-6 and the recorded spectrum at the two hybrid peaks by 5.4e-5,
-    but the recorded spectrum at the antiresonance notch by 3.8e-2, because
-    whatever modes are retained above the internal Nyquist alias into the
-    band and the notch is where the true spectrum is smallest.  The cutoff
-    is therefore a choice with a size, and the ground for making it is that
-    a 40-element chain does not represent its own modes above about the
-    twentieth: they are discretisation artefacts, and carrying artefacts
-    into the record is worse than dropping them.  Note that the discarded
-    modes are NOT negligible in the receptance, where they carry a residual
-    flexibility worth 8.5e-4 of the band peak; the difference is the factor
-    ``omega^4`` between the two, and it is the acceleration that is
-    recorded.
-
-WHAT A RECORD CARRIES
----------------------
-:func:`simulate_records` returns ``t``, ``a_stay`` and ``a_deck`` in m/s^2
-with the sensor noise and the quantiser applied, ``a_stay_clean`` and
-``a_deck_clean`` without them, ``fs``, and a ``meta`` dict.  The metadata is
-the interface every other arm of this study reads, so it carries the truth
-as well as the settings: ``f_modes`` and ``zeta_modes`` for every retained
-mode, ``energy_split`` to say which are stay modes and which deck modes,
-``f_lo``, ``f_hi``, ``f0`` and ``s`` for the hybrid pair, ``f_iso1`` for the
-isolated stay fundamental the incumbent formula would invert, and
-``snr_db`` beside ``snr_inband_db`` so that a result is never quoted against
-the wrong one.  The deck channel is 41 dB below the stay channel under equal
-load intensity, and by default each channel's noise is scaled to its own
-signal; ``noise_ref="absolute"`` gives both channels the same noise floor
-instead, which is what one instrument model on two cables would do and which
-leaves the deck channel far noisier.
-
-VERIFICATION
-------------
-``python3 scripts/simulate_records.py --verify`` runs eight checks, listed
-in ``VERIFICATION_NOTES`` below, and writes
-``data/simulate_records_verify.csv``.
-
-The one that matters most is the fourth: the Welch spectrum of long
-noise-free records against the analytic spectrum of the same model.
-"Analytic" there means the exact discrete spectrum of the zero-order-hold
-sections, multiplied by the anti-alias filter, folded by the decimation and
-finally convolved with the Welch window kernel.  The last step is not
-fussiness.  A Welch estimate of a resonance three bins wide is a smoothed
-thing, and comparing it with an unsmoothed prediction is comparing two
-different quantities: at ``nperseg = 4096`` the unsmoothed comparison is
-2.6 per cent out on average and 96 per cent out in the worst bin, while the
-smoothed one agrees to a few parts in ten thousand.
-
-That check is reported over two bands, and the two say different things.
-Over 0.4 to 39 Hz, which holds some fifteen resonances and 1581 bins, eight
-hour-long records give a mean ratio of 1.0003 with a nominal standard error
-of 0.0006.  Over 2.6 to 4.1 Hz alone, 61 bins, the same records give 0.991
-with a nominal error of 0.003, and a different set of six records gives
-0.999.  The nominal errors are optimistic, because neighbouring Welch bins
-share a window main lobe and are not independent, so the in-band figure is
-consistent with unity at roughly the one per cent precision that a 1.5 Hz
-band affords, and one per cent is the honest claim for it.  The wideband
-figure is the strong one, and it covers resonances of exactly the same kind.
-
+Integrates M q'' + C q' + K q = F(t) in modal form, one exact zero-order-hold
+section per mode, with classical Rayleigh or uniform damping, under ambient
+(spatially and temporally white load) or pluck (half-sine pulse) excitation.
+The simulated chain oversamples, applies a linear-phase FIR anti-alias filter,
+decimates to fs, adds sensor noise at a broadband SNR and quantizes. K, M and
+the Rayleigh calibration follow src/cablefe.py and scripts/run_damping.py.
 Run:  python3 scripts/simulate_records.py --verify
+(runs the checks in VERIFICATION_NOTES; writes data/simulate_records_verify.csv)
 """
 
 from __future__ import annotations
@@ -232,7 +23,7 @@ from scipy.signal import (butter, cont2discrete, fftconvolve, filtfilt,
                           find_peaks, firwin, freqz, get_window, hilbert,
                           lfilter, ss2tf, welch)
 
-try:                                     # optional, and worth having
+try:                                     # optional; limits BLAS threads in _quad
     from threadpoolctl import threadpool_limits
 except ImportError:                      # pragma: no cover
     from contextlib import contextmanager
@@ -254,8 +45,8 @@ G0 = 9.80665                     # m/s^2 per g, for reporting in milli-g
 
 FS_DEFAULT = 100.0               # Hz
 DUR_DEFAULT = 600.0              # s
-SNR_DEFAULT = 20.0               # dB, broadband
-OVERSAMPLE = 8
+SNR_DEFAULT = 20.0               # dB, broadband (in-band SNR is reported separately)
+OVERSAMPLE = 8                   # internal rate = OVERSAMPLE * fs, limits aliasing
 MODE_CUTOFF_FACTOR = 3.0         # keep modes below this times the Nyquist
 AA_CUTOFF_FRAC = 0.4             # anti-alias corner as a fraction of fs
 AA_TAPS_PER_R = 40               # FIR length = AA_TAPS_PER_R * oversample + 1
@@ -268,12 +59,10 @@ BURN_TAU = 8.0                   # burn-in, in slowest modal decay times
 CHUNK = 200000                   # internal samples per integration chunk
 
 
-# ---------------------------------------------------------------------------
-# the model, its damping, and the excitation covariance
-# ---------------------------------------------------------------------------
+# --- model, damping and excitation covariance ---
 
 class RecordSimulator:
-    """The worked bridge, ready to emit records at one tension and damping.
+    """The example bridge, ready to emit records at one tension and damping.
 
     The eigensolution is computed once in the constructor, so a Monte Carlo
     over seeds or noise levels at fixed tension costs one solve.
@@ -297,7 +86,7 @@ class RecordSimulator:
         self.cd = CableDeck(T=self.T, **self.bridge)
         w2, V = eigh(self.cd.K, self.cd.M)
         w_all = np.sqrt(np.maximum(w2, 0.0))
-        Phi_all = self.cd.Lmat @ V           # mass-normalised, full DOF
+        Phi_all = self.cd.Lmat @ V           # mass-normalized, full DOF
         self.n_modes_full = len(w_all)
         self.f_all = w_all / (2.0 * np.pi)
 
@@ -341,7 +130,7 @@ class RecordSimulator:
             self.Gamma + 1e-14 * np.trace(self.Gamma) / len(self.Gamma)
             * np.eye(len(self.Gamma)))
 
-        # -- discretisation and anti-alias filter --------------------------
+        # -- discretization and anti-alias filter --------------------------
         self._discretise()
         ntaps = AA_TAPS_PER_R * self.oversample + 1
         self.aa_taps = firwin(ntaps, aa_cutoff_frac * self.fs,
@@ -368,10 +157,8 @@ class RecordSimulator:
     def _calibrate(self, w_all):
         """Rayleigh coefficients placing zeta on both modes of the pair.
 
-        The pair is found as the two modes nearest the isolated stay
-        fundamental, which on the worked bridge is the same choice as
-        ``run_damping.DrivenBridge`` makes by taking the two modes inside
-        FBAND, and is checked to be so in the verification.
+        The pair is the two modes nearest the isolated stay fundamental, the
+        same two that ``run_damping.DrivenBridge`` takes inside FBAND.
         """
         f_iso = tensioned_beam_freq(1, self.bridge["Lc"], self.T,
                                     self.bridge["EIc"], self.bridge["mc"])
@@ -388,9 +175,8 @@ class RecordSimulator:
         State ``[q, q']``, input the modal force, output the modal
         acceleration ``q'' = f - 2 zeta w q' - w^2 q``, so the direct
         feedthrough is exactly one.  ``Ad`` and ``Bd`` come from the
-        exponential of the augmented matrix, which gives the input integral
-        without a separate quadrature, and are checked against
-        ``scipy.signal.cont2discrete`` in the verification.
+        exponential of the augmented matrix (checked against
+        ``scipy.signal.cont2discrete`` in the verification).
         """
         nm = len(self.w)
         self.b_iir = np.zeros((nm, 3))
@@ -427,27 +213,14 @@ class RecordSimulator:
     def _quad(self, fgrid, dof, mode="cont"):
         """``h(f)^H Gamma h(f)`` for the response row at ``dof``.
 
-        ``mode="cont"`` uses the continuous-time modal receptance, giving
-        the response of the structure to an ideal white force.
-        ``mode="disc"`` uses the zero-order-hold discrete transfer function
-        of the very sections ``lfilter`` runs, giving the EXACT spectrum of
-        the sampled sequence: the hold, and every alias the sampling folds
-        in, are already inside it, so nothing has to be folded or corrected
-        afterwards.  The two differ by 0.7 per cent in variance on the
-        default chain, and that difference is not noise; it was found as an
-        unexplained 0.65 per cent excess in the Parseval check, and the
-        folded-continuous form was the thing that was wrong.
+        ``mode="cont"`` uses the continuous-time modal receptance (ideal
+        white force). ``mode="disc"`` uses the zero-order-hold transfer
+        function of the sections ``lfilter`` runs, which is the exact
+        spectrum of the sampled sequence, hold and aliases included.
 
-        Evaluated as ``sum |h L|^2`` with ``Gamma = L L^T``, which is the
-        same number as the double modal sum over every pair of modes and
-        costs one matrix product instead of ``n^2`` inner products.  The
-        real and imaginary parts are multiplied separately because a
-        complex-by-real product in numpy does not reach BLAS and runs three
-        orders of magnitude slower than the two real products that replace
-        it.  The thread limit is not superstition either: on this machine a
-        201 by 50 product costs 106 ms with MKL threading and 0.08 ms
-        without, because the matrices are far too small to repay the
-        synchronisation, and the whole verification spends its time here.
+        Evaluated as ``sum |h L|^2`` with ``Gamma = L L^T``. Real and
+        imaginary parts are multiplied separately so that numpy uses BLAS,
+        and one thread is used because the matrices are small.
         """
         f = np.asarray(fgrid, dtype=float)
         out = np.empty(f.shape, dtype=float)
@@ -479,9 +252,8 @@ class RecordSimulator:
     def psd_ideal(self, fgrid, dof=None):
         """One-sided acceleration PSD of the continuous system, unit intensity.
 
-        What the structure would show under a genuinely white force, with no
-        hold, no sampling and no filter.  It is the reference the sampled
-        chain is measured against, not the thing the chain produces.
+        White force with no hold, sampling or filter: the reference for the
+        sampled chain.
         """
         dof = self.dof_stay if dof is None else dof
         om = 2.0 * np.pi * np.asarray(fgrid, dtype=float)
@@ -500,14 +272,10 @@ class RecordSimulator:
         return 2.0 * self._quad(fgrid, dof, "disc")
 
     def psd_recorded(self, fgrid, dof=None, aa=True, decim=True):
-        """One-sided PSD of the RECORDED signal, unit intensity.
+        """One-sided PSD of the recorded signal, unit intensity.
 
         The internal spectrum, multiplied by the anti-alias filter and
-        folded by the decimation.  Decimation folding is exact folding of a
-        discrete spectrum, so this expression is exact and not a truncated
-        series; the earlier version of this method summed aliases of the
-        CONTINUOUS spectrum instead, converged only as ``1/n_alias``, and
-        was 0.7 per cent wrong in the variance however many terms it took.
+        folded by the decimation. Folding a discrete spectrum is exact.
         """
         dof = self.dof_stay if dof is None else dof
         f = np.asarray(fgrid, dtype=float)
@@ -540,11 +308,8 @@ class RecordSimulator:
         return out
 
     def _fine_grid(self, lo, hi, npts, span=200.0, ncl=4001):
-        """A grid that resolves every resonance between ``lo`` and ``hi``.
-
-        A uniform grid over 0 to 400 Hz cannot resolve a resonance 0.03 Hz
-        wide, and integrating one that cannot would under-count the variance
-        by an order of magnitude.
+        """Uniform grid on [lo, hi] plus a dense cluster at each resonance,
+        so that narrow peaks are integrated correctly.
         """
         g = [np.linspace(max(lo, 1e-6), hi, npts)]
         for fj, zj in zip(self.f, self.zj):
@@ -574,10 +339,8 @@ class RecordSimulator:
         return v
 
     def band_fraction(self, band=FBAND, dof=None, npts=6000):
-        """Share of the recorded power that falls in ``band``.
-
-        Reported because a broadband signal-to-noise ratio is not an in-band
-        one, and on a stay under white load the two differ by 10 dB.
+        """Share of the recorded power that falls in ``band``; converts the
+        broadband SNR to an in-band one.
         """
         dof = self.dof_stay if dof is None else dof
         key = (dof, tuple(band), npts)
@@ -633,11 +396,10 @@ class RecordSimulator:
     def _ambient_force(self, rng, nint):
         """Modal forces of a spatially and temporally white distributed load.
 
-        The nodal forces have covariance ``Sigma / dt`` so that the force
-        spectrum is independent of the internal rate; the modal forces are
-        their projection, generated directly from the Cholesky factor of
-        ``Gamma = Phi^T Sigma Phi`` rather than through the 164 nodal
-        components, which is the same distribution at a fraction of the cost.
+        Nodal force covariance is ``Sigma / dt``, with
+        ``Sigma = M_deck / m_deck + ratio * M_stay / m_stay``, so the force
+        spectrum does not depend on the internal rate. Modal forces are drawn
+        from the Cholesky factor of ``Gamma = Phi^T Sigma Phi``.
         """
         scale = 1.0 / np.sqrt(self.dt_int)
 
@@ -669,14 +431,14 @@ class RecordSimulator:
                full_scale_g=FULL_SCALE_G, noise_ref="per_channel",
                pluck_from_anchor=None, t_pulse=1.0, dur_pulse=0.05,
                ambient_frac=0.0, quantise=True):
-        """One record.  Returns a dict of arrays and metadata.
+        """One record. Returns a dict of arrays and metadata.
 
-        ``snr_db`` is broadband: the ratio of signal RMS to noise RMS over
-        the whole recorded band, not over the band of interest.  The in-band
-        ratio is reported alongside it because for a stay under white load
-        most of the signal power sits above 10 Hz, so the two differ.
-        ``snr_db=None`` adds no sensor noise at all, which is what the
-        verification uses and what no field record ever is.
+        ``snr_db`` is broadband: signal RMS over noise RMS across the whole
+        recorded band; the in-band ratio is in ``meta["snr_inband_db"]``.
+        ``snr_db=None`` adds no sensor noise. ``excitation`` is "ambient",
+        "pluck" or "pluck+ambient". ``noise_ref="per_channel"`` scales each
+        channel's noise to its own signal; "absolute" gives both channels the
+        stay channel's noise level.
         """
         rng = np.random.default_rng(seed)
         nkeep = int(round(duration * self.fs))
@@ -692,10 +454,8 @@ class RecordSimulator:
             yf = yf[:, nburn + pad:nburn + pad + nkeep * self.oversample]
             return yf[:, ::self.oversample]
 
-        # amplitudes are set on the RECORDED signal, after the anti-alias
-        # filter and the decimation, so that the target means what it says:
-        # the filter removes a tenth of a sharp pluck's peak, and scaling
-        # before it would leave the record short of the figure asked for
+        # scale on the recorded signal, after the anti-alias filter and the
+        # decimation, so the record meets the target RMS or peak
         if excitation == "ambient":
             a_clean = chain(self._integrate(nint,
                                             self._ambient_force(rng, nint)))
@@ -736,7 +496,7 @@ class RecordSimulator:
         noise = nsig[:, None] * rng.standard_normal(a_clean.shape)
         a = a_clean + noise
 
-        # quantisation
+        # quantization
         lsb = 2.0 * full_scale_g * G0 / 2 ** nbits
         n_clip = 0
         if quantise:
@@ -778,13 +538,9 @@ def simulate_records(T, zeta, duration=DUR_DEFAULT, fs=FS_DEFAULT,
                      bridge=None, damping_model="rayleigh", **kw):
     """Acceleration records at the stay sensor and a deck station.
 
-    The five arguments the rest of the study needs are the first five:
-    tension, damping ratio, record length, sampling rate and noise level.
-    Everything else has a default that :mod:`simulate_records` documents and
-    verifies.
-
+    Other keyword arguments go to ``RecordSimulator`` or its ``record``.
     Returns a dict with ``t``, ``a_stay``, ``a_deck`` (all m/s^2, the first
-    two with sensor noise and quantisation applied), ``a_stay_clean`` and
+    two with sensor noise and quantization applied), ``a_stay_clean`` and
     ``a_deck_clean`` (before the noise), ``fs``, and ``meta``.
     """
     ctor = {k: kw.pop(k) for k in
@@ -797,19 +553,15 @@ def simulate_records(T, zeta, duration=DUR_DEFAULT, fs=FS_DEFAULT,
                       excitation=excitation, **kw)
 
 
-# ---------------------------------------------------------------------------
-# what a Welch estimate of a sharp resonance actually estimates
-# ---------------------------------------------------------------------------
+# --- expected Welch spectrum ---
 
 def expected_welch(sim, fbins, nperseg, window="hann", dof=None, os_fine=16,
                    half_bins=96):
-    """Expected Welch spectrum: the true PSD convolved with the window kernel.
+    """Expected Welch spectrum: the recorded PSD convolved with the window
+    kernel ``|W(f)|^2 / \\int |W|^2``, ``W`` the window transform.
 
-    A Welch periodogram does not estimate ``S(f)``; it estimates ``S``
-    smeared by ``|W(f)|^2 / \\int |W|^2``, with ``W`` the window transform.
-    On a resonance a few bins wide the difference is tens of per cent, so
-    comparing a Welch estimate with an unsmoothed analytic spectrum measures
-    the window, not the simulator.
+    On a resonance a few bins wide this differs from the unsmoothed PSD by
+    tens of percent.
     """
     dof = sim.dof_stay if dof is None else dof
     fbins = np.asarray(fbins, dtype=float)
@@ -834,9 +586,7 @@ def expected_welch(sim, fbins, nperseg, window="hann", dof=None, os_fine=16,
     return np.interp(fbins, gf, conv)
 
 
-# ---------------------------------------------------------------------------
-# verification
-# ---------------------------------------------------------------------------
+# --- verification ---
 
 def _shape_integral(le):
     """``\\int N^T N dx`` for one Hermite beam element, by quadrature."""
@@ -870,7 +620,7 @@ def check_sigma(sim):
 
 
 def check_zoh(sim):
-    """The expm discretisation against scipy's own."""
+    """The expm discretization against scipy's own."""
     worst_a = worst_b = 0.0
     for j in range(len(sim.w)):
         w, z = sim.w[j], sim.zj[j]
@@ -902,13 +652,10 @@ def check_frf(sim, fgrid):
 def _decay_zeta(a, fs, f0, half_band=0.2, lo_frac=0.03, hi_frac=0.7):
     """Damping from a free decay: band pass, Hilbert envelope, log fit.
 
-    The fit window runs from the first sample after the peak at which the
-    envelope has fallen to ``hi_frac`` of it, which skips the pulse itself
-    and the filter's own rise, to the first at which it reaches
-    ``lo_frac``, which stops before the noise floor bends the log envelope.
-    The window is one contiguous run, not the union of every sample in the
-    amplitude range, so a beat that dips into the range late in the record
-    cannot rejoin the fit.
+    The fit covers one contiguous run after the peak, from where the envelope
+    falls to ``hi_frac`` of the peak (past the pulse and the filter rise) to
+    where it reaches ``lo_frac`` (above the noise floor).
+    Returns (zeta, R^2 of the fit, number of points).
     """
     b, aa = butter(4, [(f0 - half_band) / (fs / 2), (f0 + half_band)
                        / (fs / 2)], btype="band")
@@ -935,7 +682,7 @@ def _decay_zeta(a, fs, f0, half_band=0.2, lo_frac=0.03, hi_frac=0.7):
 
 VERIFICATION_NOTES = """
 [1] the excitation covariance identity, against Gauss-Legendre quadrature
-[2] the zero-order-hold discretisation, against scipy.signal.cont2discrete
+[2] the zero-order-hold discretization, against scipy.signal.cont2discrete
 [3] the receptance, against run_damping.DrivenBridge, and the cost of the
     modal truncation in both the receptance and the acceleration spectrum
 [4] the Welch spectrum of long noise-free records, against the analytic
@@ -946,7 +693,7 @@ VERIFICATION_NOTES = """
     and the width of the picked pair against the merged-peak law
 [6] the damping identified from a pluck decay, against the modal damping
     that was put in
-[7] the aliasing, quantisation and signal-to-noise budget of the chain
+[7] the aliasing, quantization and signal-to-noise budget of the chain
 [8] reproducibility, and the pluck amplitude
 """
 
@@ -954,15 +701,11 @@ VERIFICATION_NOTES = """
 def refine_peaks(f, P, n_seg, half_width_hz, n_sigma=4.0, n_fit=None):
     """Peaks of a noisy spectrum, located to better than a bin.
 
-    A Welch spectrum of a random process is chi-squared about its mean, so
-    raw local maxima are meaningless: at 43 segments every third bin is a
-    local maximum.  The spectrum is therefore smoothed over one half-power
-    half-width before peaks are looked for, the prominence floor is set at
-    ``n_sigma`` times the chi-squared scatter expressed in dB, and the
-    surviving peaks are refined by a parabola through the smoothed decibel
-    curve.  Applying exactly the same procedure to the analytic spectrum
-    makes the comparison like for like, so whatever bias the smoothing
-    carries cancels out of it.
+    The dB spectrum is smoothed over one half-power half-width, peaks need a
+    prominence of ``n_sigma`` times the chi-squared scatter in dB, and each
+    peak is refined by a parabola through the smoothed curve. Apply the same
+    procedure to the analytic spectrum for a like-for-like comparison.
+    Returns (peak frequencies, prominence floor in dB).
     """
     f = np.asarray(f, dtype=float)
     db = 10.0 * np.log10(np.asarray(P, dtype=float))
@@ -1004,7 +747,7 @@ def main():
 
     zeta = 0.005
     print("RESPONSE SIMULATOR VERIFICATION")
-    print("worked bridge, T = %.1f kN, zeta = %.1f %%, fs = %.0f Hz, "
+    print("example bridge, T = %.1f kN, zeta = %.1f %%, fs = %.0f Hz, "
           "oversample %d" % (T_TUNE / 1e3, 100 * zeta, FS_DEFAULT, OVERSAMPLE))
 
     sim = RecordSimulator(T_TUNE, zeta)
@@ -1023,7 +766,7 @@ def main():
     print("    deck %.2e   stay %.2e   relative" % (c["deck"], c["stay"]))
     add("sigma_identity", deck_rel=c["deck"], stay_rel=c["stay"])
 
-    # -- 2 discretisation --------------------------------------------------
+    # -- 2 discretization --------------------------------------------------
     wa, wb = check_zoh(sim)
     print("\n[2] zero-order hold vs scipy.signal.cont2discrete, %d modes:"
           % len(sim.w))
@@ -1046,14 +789,14 @@ def main():
     fpk2 = np.array([sim.f_lo, sim.f_hi])
     t_pk = float(np.max(np.abs(sim.psd_recorded(fpk2)
                                / sim_full.psd_recorded(fpk2) - 1.0)))
-    print("    keeping all %d modes instead of %d moves the CONTINUOUS "
-          "acceleration spectrum by %.1e, and the RECORDED one by %.1e at "
-          "worst but only %.1e at the two peaks"
+    print("    keeping all %d modes instead of %d changes the continuous "
+          "acceleration spectrum by %.1e, and the recorded one by %.1e at "
+          "worst and %.1e at the two peaks"
           % (sim_full.n_modes_full, len(sim.w), t_cont, t_rec, t_pk))
-    print("    the worst case is the antiresonance notch, where the true "
+    print("    the largest change is at the antiresonance notch, where the "
           "spectrum is smallest and the aliased floor of modes above the "
-          "internal Nyquist shows: a %d element chain does not represent "
-          "those modes, which is why they are dropped rather than kept"
+          "internal Nyquist frequency is visible; a %d-element chain does "
+          "not represent those modes, so they are dropped"
           % sim.cd.nc)
     add("frf_vs_run_damping", all_modes_rel=e_all, truncated_rel=e_tru,
         n_modes_full=sim_full.n_modes_full, psd_trunc_continuous=t_cont,
@@ -1113,9 +856,9 @@ def main():
                  pred / np.sqrt(mw.sum())))
         print("      2.6-4.1 Hz  %4d bins: mean ratio %.4f +- %.4f"
               % (m.sum(), r.mean(), pred / np.sqrt(m.sum())))
-        print("      against the UNSMOOTHED spectrum, 2.6-4.1 Hz: mean "
-              "ratio %.4f, worst bin %.2f -- the window kernel is not "
-              "optional at this resolution"
+        print("      against the unsmoothed spectrum, 2.6-4.1 Hz: mean "
+              "ratio %.4f, worst bin %.2f; the window kernel is "
+              "required at this resolution"
               % ((Pb / Eu).mean(), np.max(np.abs(Pb / Eu - 1))))
         add("psd_vs_analytic", nperseg=nps, df=sim.fs / nps, n_seg=navg,
             mean_ratio_wide=float(rw.mean()),
@@ -1183,16 +926,15 @@ def main():
               % [len(g) for g in got])
         add("peak_pick", n_peaks=len(got[0]), bin_hz=sim.fs / nps)
 
-    # the picked peaks are not the eigenvalues, and the amount by which
-    # they are not is an established result of this study, so it is a check
+    # picked-peak gap against the eigenvalue gap and the merged-peak law
     if len(f_true_pk) > 1 and len(f_frf) > 1:
         u = sim.s_split / (2.0 * zeta)
         over = np.sqrt(u * np.sqrt(u ** 2 + 4.0) - 1.0) / u
         gap_e = sim.f_hi - sim.f_lo
         gap_p = f_true_pk[1] - f_true_pk[0]
         gap_f = f_frf[1] - f_frf[0]
-        print("    the picked pair is WIDER than the eigenvalue pair, as "
-              "the merged-peak law requires:")
+        print("    the picked pair is wider than the eigenvalue pair, as "
+              "the merged-peak law predicts:")
         print("      u = s/2zeta = %.4f, law predicts |x*|/u = %.5f"
               % (u, over))
         print("      eigenvalue gap %.5f Hz; ambient spectrum %.5f Hz "
@@ -1226,7 +968,7 @@ def main():
                 f_mode=f_true, zeta_true=z_true, zeta_identified=zh,
                 err_pct=100 * (zh / z_true - 1), r2=r2, n_points=npts)
 
-    # -- 7 aliasing, noise and quantisation budget --------------------------
+    # -- 7 aliasing, noise and quantization budget --------------------------
     print("\n[7] chain budget at the default settings")
     fb2 = np.linspace(FBAND[0], FBAND[1], 341)
     ratio = np.abs(sim.psd_recorded(fb2) / sim.psd_ideal(fb2) - 1.0)
@@ -1248,7 +990,7 @@ def main():
     for nb in (24, 16):
         lsb = 2.0 * FULL_SCALE_G * G0 / 2 ** nb
         q = lsb / np.sqrt(12.0)
-        print("    %2d bit over +-%.0f g: LSB %.3e m/s^2, quantisation RMS "
+        print("    %2d bit over +-%.0f g: LSB %.3e m/s^2, quantization RMS "
               "%.2e = %.1f dB below signal"
               % (nb, FULL_SCALE_G, lsb, q,
                  20 * np.log10(md["rms_stay"] / q)))
@@ -1258,15 +1000,12 @@ def main():
     print("    sensor noise at %.0f dB: %.2e m/s^2 RMS; clipped samples %d"
           % (SNR_DEFAULT, md["noise_rms"][0], md["n_clip"]))
 
-    # in-band versus broadband signal-to-noise, and a direct measurement
-    # of the conversion rather than a trust in the formula
+    # in-band versus broadband SNR, with a direct measurement of the conversion
     fr = sim.band_fraction(FBAND)
     snr_b = sim.snr_inband_db(SNR_DEFAULT)
     rlong = sim.record(duration=600.0, snr_db=SNR_DEFAULT, seed=9,
                        quantise=False)
-    # the noise sequence itself, not the difference of two spectra: the
-    # difference is a chi-squared residual clipped at zero and biases the
-    # answer by nearly a decibel
+    # use the noise sequence itself; a difference of two spectra is biased
     fw, Pc = welch(rlong["a_stay_clean"], fs=sim.fs, nperseg=8192,
                    window="hann", noverlap=4096)
     _, Pn = welch(rlong["a_stay"] - rlong["a_stay_clean"], fs=sim.fs,

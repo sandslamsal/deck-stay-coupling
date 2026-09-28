@@ -1,52 +1,14 @@
 # -*- coding: utf-8 -*-
-"""Design of the bench-scale cable-beam rig that would test the amplitude law.
+"""Design of a bench-scale cable-beam rig for testing the veering split and
+the tension-error law.
 
-Everything this study claims in closed form has been checked against its own
-finite element model, against an exact transcendental characteristic
-equation, and against two published field records.  None of it has been
-checked against a measurement made for the purpose: on the one field record
-with a nominally independent tension every instrumented stay is one where
-the predicted bias is negligible, the resolvability condition has no
-measured test at all, and the shape-fit estimator has never touched measured
-data.  This script fixes the dimensions of a rig that would close those
-gaps, and computes every number the rig has to hit, so that the design is
-reproducible rather than asserted.
-
-THE RIG IN ONE SENTENCE.  A horizontal steel blade, simply supported, free
-to bend in the HORIZONTAL plane, with a near-vertical music wire pinned to
-it at a chosen station and running down to a load cell and a soft-spring
-tensioner anchored to the floor.
-
-Five choices in that sentence carry the design, and each is forced:
-
-*   the blade bends horizontally, so gravity loads it on its stiff axis and
-    its self-weight deflection never enters the coupled plane;
-*   the wire hangs near-vertical, so the beam's motion is PERPENDICULAR to
-    the chord.  That is what the model calls ``theta = 0``, it is the
-    geometry of maximum tie factor ``cos(theta) = 1``, and it puts the
-    wire's own weight along the chord, so there is no sag to correct;
-*   the chord lies in the plane PERPENDICULAR to the beam axis, so the wire
-    puts no axial force into the beam and the beam frequency does not move
-    as the tension is swept.  A stay lying in the plane of the beam axis
-    would compress it and the beam frequency would chase the tension,
-    destroying the sweep;
-*   a soft spring sits in the axial load path beyond the top pin.  It
-    removes the thermal tension drift that would otherwise smear every peak
-    (4.2 N/K becomes 0.09 N/K) and it reduces the stay's axial restraint on
-    the beam to a few per cent of the beam's own stiffness, so the beam is
-    unperturbed by the sweep;
-*   the anchorage is movable along the beam.  ``mu_eff`` is proportional to
-    ``sin^2(j pi x_a / L_b)`` while the plain mass ratio ``M_s/M_b`` is
-    fixed by the hardware, so moving one clamp turns the coupling from its
-    maximum to exactly zero without changing a single mass.  That is the
-    discriminator between the two candidate groups, and it is the reason
-    the rig is built this way.
-
-The model behind all of this is ``src/cablefe.py``, used unchanged: the
-closed forms and the coupled finite element are both taken from it, so the
-predictions below are the study's own and not a re-derivation.
-
-Writes ``data/rig_design.csv``.
+The rig is a simply supported steel blade bending in the horizontal plane,
+with a near-vertical music wire (theta = 0) pinned to it at a movable station
+and tensioned through a load cell and a soft spring. Using the closed forms
+and coupled model of src/cablefe.py, the script computes the rig's
+frequencies, the crossings in the tension sweep, the predicted split, the
+detuning and damping ladders, and instrumentation checks. Writes
+data/rig_design.csv.
 
 Run:  python3 scripts/rig_design.py
 """
@@ -76,11 +38,8 @@ DATA = os.path.join(ROOT, "data")
 # ---------------------------------------------------------------------------
 
 # -- beam ("deck") ---------------------------------------------------------
-# S355 ground flat bar standing on edge: 75 mm tall (vertical, stiff axis,
-# which carries gravity and the axial pull of the wire) by 10 mm thick
-# (horizontal, soft axis, in which the coupled motion happens), 900 mm
-# between pin centres.  Stock section; the only machining is the end
-# flexures and the tapped anchorage stations.
+# S355 flat bar on edge: 75 mm tall (stiff axis, carries gravity) by 10 mm
+# thick (soft axis, the coupled plane), 900 mm between pin centers.
 E_B, RHO_B = 200.0e9, 7850.0
 LB, B_TALL, B_THICK = 0.900, 0.075, 0.010
 
@@ -92,11 +51,9 @@ IB_STIFF = B_THICK * B_TALL ** 3 / 12.0
 EIB = E_B * IB_FLEX
 
 # -- wire ("stay") ---------------------------------------------------------
-# ASTM A228 music wire, 1.50 mm, 1.500 m between pin centres.  Music wire
-# because its UTS at this gauge (~2200 MPa) keeps every tension in the sweep
-# below 14 per cent of breaking, because its internal damping is very low,
-# and because it is ferromagnetic and can therefore be driven by a
-# non-contact electromagnet.
+# ASTM A228 music wire, 1.50 mm, 1.500 m between pin centers. UTS about
+# 2200 MPa keeps the sweep below 14 % of breaking; low internal damping;
+# ferromagnetic, so it can be driven by a non-contact electromagnet.
 E_C, RHO_C = 207.0e9, 7850.0
 LC, DC = 1.500, 0.00150
 
@@ -109,13 +66,17 @@ M_STAY = 0.5 * MC_LIN * LC
 UTS_C = 2200e6
 
 # -- tensioner -------------------------------------------------------------
+# soft spring in series with the wire: cuts thermal tension drift and the
+# wire's axial restraint on the beam
 K_SPRING = 5.0e3
 K_AX_WIRE = EA_WIRE / LC
 K_SERIES = 1.0 / (1.0 / K_SPRING + 1.0 / K_AX_WIRE)
 EA_EFF = K_SERIES * LC
 ALPHA_STEEL = 11.5e-6
 
-# -- campaign --------------------------------------------------------------
+# -- test matrix -----------------------------------------------------------
+# anchorage stations x_a / L_b: mu_eff varies as sin^2(j pi x_a / L_b) while
+# M_s / M_b stays fixed
 STATIONS = {"S50": 0.500, "S33": 1.0 / 3.0, "S25": 0.250,
             "S15": 0.150, "S05": 0.050}
 THETAS_DEG = [0.0, 30.0, 45.0]
@@ -129,12 +90,12 @@ ZETA_LADDER = np.array([0.0015, 0.0025, 0.004, 0.006, 0.009, 0.014,
                         0.020, 0.030, 0.045])
 ZETA_BASE = 0.0015                    # the rig's own damping, assumed
 
-C_DIP = 2.0 * np.sqrt(np.sqrt(5.0) - 2.0)     # 0.97169, Eq. (resolve)
-C_3DB = 2.0 * 1.13985                         # 2.2797, the 3 dB companion
+C_DIP = 2.0 * np.sqrt(np.sqrt(5.0) - 2.0)     # 0.97169: a dip needs s > C_DIP zeta
+C_3DB = 2.0 * 1.13985                         # 2.2797: a 3 dB dip needs s > C_3DB zeta
 
-# sensor stations for the shape fit, x measured from the GROUND end, the
-# anchorage at x = L.  Clustered at both ends because the evanescent term
-# decays over L/xi, which is 20-50 mm on this wire.
+# sensor stations for the shape fit, x measured from the ground end, the
+# anchorage at x = L; clustered at both ends because the evanescent term
+# decays over L/xi, 20-50 mm on this wire
 SHAPE_X = np.array([0.005, 0.015, 0.030, 0.060, 0.120, 0.200, 0.300, 0.420,
                     0.550, 0.680, 0.800, 0.880, 0.940, 0.970, 0.995])
 
@@ -144,13 +105,11 @@ SHAPE_X = np.array([0.005, 0.015, 0.030, 0.060, 0.120, 0.200, 0.300, 0.420,
 # ---------------------------------------------------------------------------
 
 def phi_anchor(j, xfrac):
-    """Mass-normalised beam amplitude at the anchorage, analytic.
+    """Mass-normalized beam ordinate at the anchorage, analytic.
 
     Simply supported uniform beam: phi_j(x) = sqrt(2/(m L)) sin(j pi x/L).
-    In the rig this quantity is not taken on trust; it is measured as the
-    driving-point residue of the beam at the anchorage station, which for a
-    mass-normalised mode IS phi_a^2.  That is what makes mu_eff an
-    experimental quantity rather than a modelled one.
+    In the rig phi_a^2 is measured as the driving-point residue of the beam
+    at the anchorage station.
     """
     return np.sqrt(2.0 / MB) * np.sin(j * np.pi * xfrac)
 
@@ -194,11 +153,11 @@ def zeta_limits(s):
 
 
 def dip_depth_db(u):
-    """Depth of the notch between two equal-residue Lorentzians.
+    """Depth (dB) of the notch between two equal-residue Lorentzians.
 
-    Symmetric form of the manuscript's Eq. (merged) at rho = 1:
+    Merged-peak spectrum at rho = 1, u = s / (2 zeta):
     |H|^2 = 4(x^2+1) / ((x^2 - 1 - u^2)^2 + 4x^2), x measured from the pair
-    centre in units of zeta omega_0.  Positive means a visible notch.
+    center in units of zeta omega_0.  Positive means a visible notch.
     """
     h2 = lambda x: 4.0 * (x * x + 1.0) / ((x * x - 1.0 - u * u) ** 2  # noqa
                                           + 4.0 * x * x)
@@ -209,13 +168,12 @@ def dip_depth_db(u):
 
 
 def merged_peak(u, zeta, d=0.0):
-    """Peak position and tension error once the doublet has merged.
+    """Peak position x_* and tension error once the doublet has merged.
 
-    Manuscript Eq. (merged) at equal residues: the maximum of |H|^2
-    sits at x_*^2 = u sqrt(u^2 + 4) - 1, real exactly when the dip
-    exists, and the tension the merged peak delivers is in error by
-    eps_m = 2 zeta x_* - d.  Below the threshold x_* = 0, the single
-    peak sits at the pair centre, and the error is -d.
+    At equal residues the maximum of |H|^2 sits at
+    x_*^2 = u sqrt(u^2 + 4) - 1, real only when the dip exists, and the
+    tension error is eps_m = 2 zeta x_* - d.  Below the threshold x_* = 0,
+    the single peak sits at the pair center, and the error is -d.
     """
     xs2 = u * np.sqrt(u * u + 4.0) - 1.0
     xs = np.sqrt(xs2) if xs2 > 0.0 else 0.0
@@ -225,10 +183,8 @@ def merged_peak(u, zeta, d=0.0):
 def resolution(f0, s, zeta):
     """Line spacing and record length one crossing demands.
 
-    Two demands, and the tighter governs.  The doublet must be separated by
-    at least eight lines, or the split is a shape rather than a number; and
-    the half-power band of each branch must carry at least six, because the
-    damping is not an input to this experiment but one of its measurements.
+    At least eight lines across the split and six across each branch's
+    half-power band (the damping is measured); the tighter governs.
     """
     df = min(s * f0 / 8.0, 2.0 * zeta * f0 / 6.0)
     return df, 1.0 / df
@@ -239,10 +195,10 @@ def resolution(f0, s, zeta):
 # ---------------------------------------------------------------------------
 
 def pick_window(n):
-    """Half-width of the band a peak picker would search, relative.
+    """Relative half-width of the band a peak picker searches.
 
-    Wire modes are spaced f0/n apart, so the window has to shrink with n or
-    it swallows the neighbours and the 'peak' picked is a different order.
+    Wire modes are spaced f0/n apart, so the window shrinks with n to keep
+    neighboring orders out.
     """
     return min(0.20, 0.35 / n)
 
@@ -255,23 +211,22 @@ def fe_split(T, xfrac, theta, f0):
     if len(win) < 2:
         return np.nan, np.nan
     two = np.sort(win[np.argsort(np.abs(win - f0))[:2]])
-    # residue ratio the WIRE sensor sees, which is what sets the notch shape
+    # residue ratio at the wire sensor, which sets the notch shape
     dof = cd.cable_sensor_dof(0.15 * LC)
     amp = np.abs(Phi[dof, :])
     a = [amp[np.argmin(np.abs(f - t))] for t in two]
     gap = (two[1] - two[0]) / f0
-    # rho only means something once both branches carry wire motion;
-    # at a node one of them carries none and the ratio is noise
+    # rho is undefined when one branch carries no wire motion at the sensor
     rho = (a[1] / a[0]) ** 2 if (a[0] > 0 and gap > 1e-4) else np.nan
     return gap, rho
 
 
 def fe_pick(T, xfrac, theta, n, f_iso):
-    """What a wire-mounted sensor picks, and what the incumbent reads it as.
+    """Frequency picked by a wire sensor, and the tensions inferred from it.
 
-    No knowledge of which branch is 'really' the stay mode is used: the
-    largest response at a station 0.15 L above the anchorage wins, which is
-    what a peak picker does.
+    The largest response in the search window at the sensor 0.15 L_c from
+    the anchorage wins, as in peak picking.  Returns (f_pick, T_str, T_tb),
+    the tensions from the string and tensioned-beam formulas.
     """
     cd = build(T, xfrac, theta)
     f, Phi = cd.modes(120)
@@ -291,7 +246,7 @@ def fe_pick(T, xfrac, theta, n, f_iso):
 
 
 # ---------------------------------------------------------------------------
-# 4.  the campaign
+# 4.  the test program
 # ---------------------------------------------------------------------------
 
 HEADLINE = [("S50", 0.0, 1, 1), ("S15", 0.0, 1, 1), ("S05", 0.0, 1, 1),
@@ -334,7 +289,7 @@ def main():
           "(%.1f %% UTS)"
           % (1e-6 * T_MIN / AC, T_MIN, 100 * T_MIN / AC / UTS_C,
              1e-6 * T_MAX / AC, T_MAX, 100 * T_MAX / AC / UTS_C))
-    print("  xi = L sqrt(T/EI) runs %.0f to %.0f over the sweep"
+    print("  xi = L sqrt(T/EI) runs %.0f to %.0f over the tension range"
           % (xi_param(LC, T_MIN, EIC), xi_param(LC, T_MAX, EIC)))
     print("  self weight along the chord: %.3f N, so the tension varies "
           "%.2f %% end to end at %.0f N"
@@ -342,14 +297,14 @@ def main():
              100 * MC_LIN * LC * 9.80665 / 100.0, 100.0))
 
     print("\nGOVERNING GROUP")
-    print("  plain mass ratio M_s/M_b = %.4e, IDENTICAL at every station "
+    print("  plain mass ratio M_s/M_b = %.4e, the same at every station "
           "and every beam mode" % (M_STAY / MB))
     print("  station  x_a/L_b      mu_eff(j=1)   mu_eff(j=2)   mu_eff(j=3)")
     for name, xf in STATIONS.items():
         mus = [mu_effective(M_STAY, phi_anchor(j, xf)) for j in (1, 2, 3)]
         print("  %s      %.4f   %11.4e   %11.4e   %11.4e"
               % (name, xf, *mus))
-    print("  population (699 graded designs, data/campaign.csv): mu_eff "
+    print("  design set (699 graded designs, data/campaign.csv): mu_eff "
           "5th-95th pct 3.5e-5 to 1.5e-2, median 6.5e-4")
 
     print("\nTENSIONER, THERMAL AND STATIC CHECKS")
@@ -371,7 +326,7 @@ def main():
     rows = []
 
     # ---- 4a. the isolated-wire sweep ------------------------------------
-    print("\nISOLATED WIRE FREQUENCIES ACROSS THE SWEEP (Hz)")
+    print("\nISOLATED WIRE FREQUENCIES OVER THE TENSION RANGE (Hz)")
     Tsweep = np.array([20, 25, 36, 50, 60, 80, 96, 110, 150, 175, 216, 250,
                        317, 400, 460, 520], float)
     hdr = "   T[N]  " + "".join("   n=%-2d" % n for n in range(1, 9))
@@ -398,14 +353,14 @@ def main():
                 cross.append((j, n, float(fb0[j - 1]), float(T)))
     cross.sort(key=lambda r: -r[3])
 
-    print("\nCROSSINGS INSIDE THE SWEEP (%.0f to %.0f N): %d of them"
+    print("\nCROSSINGS INSIDE THE TENSION RANGE (%.0f to %.0f N): %d of them"
           % (T_MIN, T_MAX, len(cross)))
     print("   j   n   T_cross[N]   f0[Hz]   sigma[MPa]     xi")
     for j, n, f0, T in cross:
         print("  %2d  %2d   %9.2f  %8.2f   %8.0f  %6.0f"
               % (j, n, T, f0, 1e-6 * T / AC, xi_param(LC, T, EIC)))
 
-    print("\nPREDICTED SPLIT: closed form against the study's own coupled FE")
+    print("\nPREDICTED SPLIT: closed form against the coupled FE model")
     for name, xf in STATIONS.items():
         for th_deg in THETAS_DEG:
             if th_deg != 0.0 and name != "S50":
@@ -448,7 +403,7 @@ def main():
                          ("%5.0f s" % tr) if np.isfinite(tr) else "  n/a"))
 
     # ---- 4c. detuning ladders -------------------------------------------
-    print("\nDETUNING LADDERS  (eps is the TENSION error; the branch moves "
+    print("\nDETUNING LADDERS  (eps is the tension error; the branch moves "
           "by eps/2 in frequency)")
     for name, th_deg, j, n in HEADLINE:
         xf, th = STATIONS[name], np.deg2rad(th_deg)
@@ -540,11 +495,11 @@ def main():
     for dx in (0.5, 1.0, 2.0, 5.0):
         e = dx * 1e-3 / LB
         mul = mu_effective(M_STAY, phi_anchor(2, 0.5 + e))
-        print("    %4.1f mm off the node leaks mu_eff = %.3e, s = %.4f %%"
+        print("    %4.1f mm off the node gives mu_eff = %.3e, s = %.4f %%"
               % (dx, mul, 100 * veering_split(mul, 0.0, 2)))
 
     # ---- 4f. shape-fit stations -----------------------------------------
-    print("\nSHAPE-FIT (ALGORITHM 1) SAMPLING")
+    print("\nSHAPE-FIT SENSOR STATIONS")
     for T in (24.0, 99.5, 397.8):
         p = np.sqrt((np.sqrt(T ** 2 + 0.0) + T) / (2.0 * EIC))
         print("  T = %6.1f N: xi = %5.1f, evanescent decay length L/xi = "
@@ -556,12 +511,12 @@ def main():
                                                   for v in SHAPE_X))
     print("  in mm from the ground end: " + ", ".join(
         "%.1f" % (1e3 * v * LC) for v in SHAPE_X))
-    print("  data/sensitivity.csv: 5 stations already identify T; shape "
+    print("  data/sensitivity.csv: 5 stations identify T; shape "
           "noise 0.5 % of peak gives 0.74 % RMSE in tension, 1 % gives "
           "1.39 %, 2 % gives 2.73 %")
-    print("  chord length enters squared and mass per metre one for one, so "
-          "L_c to +-0.5 mm (%.3f %%) and m_c to +-0.1 %% cap the systematic "
-          "at %.2f %% and %.2f %%"
+    print("  chord length enters squared and mass per meter one for one, so "
+          "L_c to +-0.5 mm (%.3f %%) and m_c to +-0.1 %% bound the systematic "
+          "error at %.2f %% and %.2f %%"
           % (100 * 0.0005 / LC, 2 * 100 * 0.0005 / LC, 0.1))
 
     # ---- 4g. instrumentation arithmetic ---------------------------------
@@ -574,13 +529,13 @@ def main():
               "being measured is %.2f to %.2f %%"
               % (name, 1e3 * m_acc, 1e3 * m_wire, 100 * m_acc / m_wire,
                  100 * m_acc / m_wire, 0.15, 3.99))
-    print("  -> the wire must be measured without contact.  Accelerometers "
+    print("  -> the wire is measured without contact; accelerometers "
           "go on the beam, where %.1f g on %.2f kg is %.3f %%"
           % (5.0, MB, 100 * 5e-3 / MB))
     fs = 2048.0
     nblk = 2 ** 18
     print("  DAQ: fs = %.0f Hz, block %d samples = %.1f s, df = %.4f Hz, "
-          "which clears the tightest demand in the campaign (%.4f Hz)"
+          "finer than the tightest requirement in the test program (%.4f Hz)"
           % (fs, nblk, nblk / fs, fs / nblk, 0.0110))
     print("  anti-alias below %.0f Hz; the highest wire mode of interest is "
           "n = 8 at %.0f N, %.0f Hz"

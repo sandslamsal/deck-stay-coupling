@@ -1,26 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Revision 1, R2.3 and R2.4: what a flexible pylon does to the coupling.
+"""Veering width with a flexible pylon: finite element against the one- and
+two-ended predictions (cablefe2d.split_one_ended, split_two_ended).
 
-The submitted model holds the stay's top at a rigid pylon. With a pylon
-that sways, the stay is driven at both ends: by the deck's vertical
-ordinate at the anchorage through cos(theta) and by the pylon top's
-horizontal ordinate through sin(theta), combined with the sign the stay
-mode's parity sets (src/cablefe2d.split_two_ended, verified in
-scripts/verify_cablefe2d.py). This script gives the order of magnitude on
-two bridges.
-
-A. The worked bridge with a pylon of the stay's own height, its bending
-   stiffness scanned from very stiff to sway frequencies below the
-   crossing, at stay orders one and two. For each pylon: the host mode
-   the stay meets, its two ordinates, the finite element width, and the
-   one- and two-ended predictions.
-
-B. A representative long-span design from the campaign (the longest deck
-   with a fundamental stay crossing), with a concrete pylon of the stay's
-   height and a realistic stiffness scanned over a decade.
-
-Writes data/pylon.csv.
-
+A. Example bridge, pylon of the stay's height, bending stiffness scanned from
+   rigid to a sway frequency below the crossing, stay orders 1 and 2.
+B. Longest-deck campaign design with a fundamental stay crossing, concrete
+   pylon of the stay's height, bending stiffness scanned.
+Reads data/campaign.csv; writes data/pylon.csv.
 Run:  python3 scripts/run_pylon.py
 """
 from __future__ import annotations
@@ -44,10 +30,15 @@ BRIDGE = dict(Ld=80.0, EId=2.0e9, md=1000.0,
 
 
 def cantilever_f1(EI, m, H):
+    """First bending frequency (Hz) of a uniform cantilever of height H."""
     return 1.875104 ** 2 / (2 * np.pi * H ** 2) * np.sqrt(EI / m)
 
 
 def traverse(make, Ts, n):
+    """Scan tension for the narrowest relative gap near stay order n.
+
+    Returns (gap, T, f_lo, f_hi, model) at the narrowest gap.
+    """
     best = (np.inf, None, None, None, None)
     for T in Ts:
         cd = make(T)
@@ -65,6 +56,8 @@ def traverse(make, Ts, n):
 
 
 def score(label, cd, n, s_fe, T_at, f_lo, f_hi, extra):
+    """Result row: host mode nearest the pair, its deck and pylon ordinates,
+    and the finite element, one-ended and two-ended widths."""
     M_s = 0.5 * cd.mc * cd.Lc
     fh, pa, pp = cd.host_alone(16)
     f0 = 0.5 * (f_lo + f_hi)
@@ -82,7 +75,7 @@ def score(label, cd, n, s_fe, T_at, f_lo, f_hi, extra):
 
 
 def part_a(rows):
-    print("A. worked bridge with a pylon of the stay's height, stiffness scanned")
+    print("A. example bridge with a pylon of the stay's height, stiffness scanned")
     Hp = BRIDGE["Lc"] * np.sin(BRIDGE["theta"])
     m_p = 2000.0
     for n, Ts in ((1, np.linspace(120e3, 190e3, 141)), (2, np.linspace(92e3, 125e3, 133))):
@@ -91,7 +84,7 @@ def part_a(rows):
         s_fe, T_at, f_lo, f_hi, cd = traverse(make, Ts, n)
         r = score("worked_rigid", cd, n, s_fe, T_at, f_lo, f_hi, dict(EI_p=np.inf, f_pylon=np.inf, Hp=Hp))
         rows.append(r)
-        print(f"   n = {n} rigid pylon: s_FE {100*s_fe:.3f} %, Eq.(5) {100*r['s_one']:.3f} %")
+        print(f"   n = {n} rigid pylon: s_FE {100*s_fe:.3f} %, one-ended {100*r['s_one']:.3f} %")
         for EIp in (1e11, 3e10, 1e10, 5e9, 3e9, 2e9, 1e9, 5e8):
             pyl = dict(EI=EIp, m=m_p, EA=1e11, n=20)
             fp = cantilever_f1(EIp, m_p, Hp)
@@ -108,7 +101,7 @@ def part_a(rows):
 
 
 def part_b(rows):
-    print("B. representative long-span design from the campaign")
+    print("B. representative long-span design from the design set")
     c = pd.read_csv(os.path.join(DATA, "campaign.csv"))
     g = c[(c.mac > 0.5) & (c.xi > 150) & (c.n_stay == 1)]
     r = g.sort_values("Ld").iloc[-1]

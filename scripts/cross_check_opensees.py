@@ -1,25 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Independent cross-check of the coupled model against OpenSees.
+"""Cross-check of the reduced coupled model against OpenSees.
 
-``verify_coupling.py`` checks the assembly against an exact solution, but it
-checks the model on the model's own terms: reduced planar kinematics, in
-which the stay enters the deck as a vertical spring ``(EA/L) sin^2(theta)``
-and a transverse tie ``v_bottom = cos(theta) w_deck``.  That reduction could
-be self-consistent and still be the wrong idealisation of a real inclined
-stay.
-
-This file builds the same bridge in OpenSees with TRUE TWO-DIMENSIONAL
-GEOMETRY.  The stay is a chain of corotational truss elements running from
-the pylon top down to the deck at its real inclination, sharing a node with
-the deck, carrying its own distributed mass.  Nothing is reduced: the axial
-and transverse paths both arise from the geometry, and the tension enters
-through the corotational tangent rather than through an assumed geometric
-stiffness matrix.  If the reduced model is a fair idealisation the two
-spectra agree; if the ``sin^2`` and ``cos`` reduction is wrong, they do not.
-
-OpenSees is an independent implementation by an independent group, which is
-the property that makes the check worth anything.
-
+Builds the same bridge with true 2D geometry: the stay is a chain of
+corotational truss elements from the pylon top to the deck at its real
+inclination, carrying its own mass. Compares the first eight frequencies with
+the reduced model (stay as a spring (EA/L) sin^2(theta) plus a transverse tie
+v_bottom = cos(theta) w_deck). Requires openseespy.
 Run:  python3 scripts/cross_check_opensees.py
 """
 
@@ -41,11 +27,12 @@ import openseespy.opensees as ops  # noqa: E402
 
 def opensees_model(Ld, EId, md, Lc, EIc, mc, T, EA, theta,
                    nd=48, nc=48, Ad=1.0, nmodes=14):
-    """The same bridge, true 2D geometry, corotational stay.
+    """Same bridge in OpenSees, true 2D geometry, corotational stay.
 
     Deck axial motion is restrained so the comparison isolates the bending
-    and stay dynamics, which is the only part the reduced model represents.
-    Everything else is left to the geometry.
+    and stay dynamics the reduced model represents. Returns the sorted
+    frequencies (Hz), the static-analysis flag, the achieved stay force (N)
+    and the anchorage uplift (m).
     """
     ops.wipe()
     ops.model('basic', '-ndm', 2, '-ndf', 3)
@@ -64,8 +51,8 @@ def opensees_model(Ld, EId, md, Lc, EIc, mc, T, EA, theta,
         ops.element('elasticBeamColumn', e + 1, e + 1, e + 2,
                     Ad, Ed, Iz, 1, '-mass', md, '-cMass')
 
-    # simply supported, and axial motion removed so the reduced model's
-    # transverse-only deck is the thing being compared
+    # simply supported; axial motion removed to match the transverse-only
+    # deck of the reduced model
     ops.fix(1, 1, 1, 0)
     ops.fix(nd + 1, 1, 1, 0)
     for i in range(2, nd + 1):
@@ -84,8 +71,7 @@ def opensees_model(Ld, EId, md, Lc, EIc, mc, T, EA, theta,
     ops.equalDOF(anchor_tag, cable_first, 1, 2)
     ops.fix(cable_first + nc, 1, 1, 1)          # pylon top held
 
-    # rotational DOFs of the truss chain carry no stiffness. The pylon node
-    # is already fully fixed above, so it is skipped.
+    # truss-chain rotations carry no stiffness; the pylon node is already fixed
     for j in range(nc):
         ops.fix(cable_first + j, 0, 0, 1)
 
@@ -100,11 +86,8 @@ def opensees_model(Ld, EId, md, Lc, EIc, mc, T, EA, theta,
                     cable_first + j + 1, Ac, 101, '-rho', mc, '-cMass', 1)
 
     # ---- balance the prestress ----------------------------------------
-    # The stay pulls the anchorage up with T sin(theta). On a real bridge
-    # dead load reacts that; with nothing to react it the deck simply lifts
-    # and the tension bleeds away, which is not the state the reduced model
-    # linearises about. The balancing load holds the reference geometry so
-    # the tangent is taken at tension T, as intended.
+    # A downward load T sin(theta) at the anchorage (dead load on a real
+    # bridge) holds the reference geometry, so the tangent is taken at T.
     ops.timeSeries('Constant', 1)
     ops.pattern('Plain', 1, 1)
     ops.load(anchor_tag, 0.0, -T * np.sin(theta), 0.0)

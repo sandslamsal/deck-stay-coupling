@@ -1,81 +1,12 @@
 # -*- coding: utf-8 -*-
-"""What each identification method returns through a deck-stay crossing.
+"""Tension each identification method returns through a deck-stay crossing.
 
-THE CLAIM UNDER TEST.  The manuscript prices the tension error of the
-incumbent inversion with two closed forms.  The branch law,
-``eps = sqrt(d^2 + s^2) - |d|``, prices a resolved pair with one branch
-read.  The merged-peak law prices the single maximum left when the pair is
-not resolved, and it says that maximum lies OUTSIDE the pair, reaching
-``sqrt(5)/2`` of the branch value at ``u = 2/sqrt(3)`` before collapsing
-toward the mean as damping rises further.  Both assume the frequency is
-PICKED from a spectrum as a maximum.  The manuscript then asserts, without
-evidence, that a method which fits modes rather than picking maxima "can
-separate a pair the spectrum shows as one, in which case the branch law
-returns in full".  Nothing in the study had run such a method.
-
-This script runs six of them on the same records: peak picking, half power,
-FDD, EFDD, covariance-driven SSI and data-driven SSI, over a traverse of
-tension through the crossing, six damping ratios, three noise levels, three
-record lengths and repeated realisations, and reports the tension each one
-returns beside the truth, the branch law and the merged-peak law.
-
-NOTHING HERE REIMPLEMENTS THE PHYSICS OR THE ESTIMATORS.  The model, the
-Rayleigh calibration, the excitation and the measurement chain come from
-``simulate_records``; the four spectral estimators come from ``oma_fdd``;
-the two subspace estimators come from ``oma_ssi``; the two laws come from
-``run_merged`` and ``run_dangerband``; the inversion comes from
-``cablefe``.  The verification below asserts that the readings produced
-here reproduce ``oma_fdd.run_one`` on a shared state to the last digit, so
-this campaign cannot drift from the arms it summarises.
-
-WHAT IS SWEPT, AND WHY
-
-tension    seventeen values, placed by inverting the detuning rather than by
-           stepping the tension, so the traverse is even in the variable the
-           laws are written in.  The targets run to ``|d| = 4 per cent``,
-           which is where ``run_dangerband`` measures the seasonal swing, and
-           thirteen of the seventeen sit inside ``|d| <= s`` where the branch
-           exchange happens.
-damping    0.1, 0.2, 0.5, 1, 2 and 3 per cent.  At the crossing these give
-           ``u = s / 2 zeta`` of 11.7, 5.8, 2.3, 1.17, 0.58 and 0.39, so the
-           sweep crosses ``u = 2/sqrt(3) = 1.155``, where the merged-peak law
-           is worst, and ``u = 0.4859``, below which the dip in the spectrum
-           does not exist at all.
-noise      clean (no sensor noise), then 40, 20, 10, 6 and 3 dB broadband.
-           A force-balance accelerometer on a stay sits nearer 50 dB and a
-           cheap MEMS unit nearer 15 dB, so 20 dB is already pessimistic and
-           3 dB is a deliberately hostile case.
-length     150 s, 600 s and 3600 s.  600 s is the ordinary ambient stay
-           record; 3600 s is what a monitoring system can be asked for; 150 s
-           is what a survey crew has time for, and at that length the Welch
-           resolution alone is coarser than the split, which separates
-           "the spectrum cannot resolve it" from "the damping has merged it".
-seeds      five realisations in the main grid, three in the sub-arms.  Every
-           number below is reported with its scatter across realisations.
-
-THE READINGS.  Each method returns one frequency, and the incumbent
-inversion turns it into a tension by ``T = 4 m L^2 f^2``.  Two error
-measures are carried for each, because they answer different questions.
-``eps`` is the coupling error ``(f/f_iso1)^2 - 1``, which is what the two
-laws predict; ``errT`` is the error against the true tension, which is what
-the engineer suffers and which also carries the 0.13 per cent the string
-formula loses to bending stiffness.  For the subspace methods, which can
-return two poles, four readings are priced, because "SSI separated the
-pair" and "the engineer got the right tension" are different claims:
-
-  amplitude   the pole with the larger stay-channel spectral density, which
-              is what an engineer would take with no other information
-  shape       the pole with the larger stay-to-deck amplitude ratio in the
-              identified mode shape, which a two-sensor analyst can apply
-              and a one-sensor analyst cannot
-  oracle      the pole that IS the stay-dominated branch, which nobody can
-              know in the field but which is what the branch law prices
-  trace       both poles used together, ``f_s^2 = f_+^2 + f_-^2 - f_d^2``,
-              which is exact for the two-mode pencil and needs the deck
-              frequency as an input.  Its sensitivity to that input is
-              measured and reported, not assumed away.
-
-Writes ``data/oma.csv`` (one row per state) and ``data/oma_verify.csv``.
+Peak picking, half power, FDD, EFDD, covariance-driven SSI and data-driven SSI
+are run on records from simulate_records over a tension traverse through the
+crossing, six damping ratios, several noise levels and record lengths, and
+repeated seeds. Each frequency is inverted by T = 4 m L^2 f^2 and compared with
+the true tension, the branch law and the merged-peak law.
+Writes data/oma.csv (one row per state) and data/oma_verify.csv.
 
 Run:  python3 scripts/run_oma.py --verify
       python3 scripts/run_oma.py --campaign [--nproc 6]
@@ -112,11 +43,9 @@ from oma_ssi import identify, prepare  # noqa: E402
 
 DATA = os.path.join(ROOT, "data")
 
-# ---------------------------------------------------------------------------
-# the design
-# ---------------------------------------------------------------------------
+# --- design ---
 
-# detuning targets; the tensions that realise them are solved for below
+# detuning targets; the tensions that realize them are solved for below
 D_TARGETS = (-0.040, -0.030, -0.022, -0.016, -0.011, -0.007, -0.004, -0.002,
              0.000, 0.002, 0.004, 0.007, 0.011, 0.016, 0.022, 0.030, 0.040)
 D_CORE = (-0.022, -0.007, 0.000, 0.007, 0.022)   # the sub-arms' tensions
@@ -124,7 +53,7 @@ D_CORE = (-0.022, -0.007, 0.000, 0.007, 0.022)   # the sub-arms' tensions
 ZETAS = (0.001, 0.002, 0.005, 0.010, 0.020, 0.030)
 DUR_MAIN = (600.0, 3600.0)
 DUR_SHORT = 150.0
-SNR_MAIN = (None, 20.0)                # clean and the realistic default
+SNR_MAIN = (None, 20.0)                # clean and the default 20 dB
 SNR_LADDER = (40.0, 10.0, 6.0, 3.0)    # 20 dB is already in the main grid
 SEEDS_MAIN = (0, 1, 2, 3, 4)
 SEEDS_SUB = (0, 1, 2)
@@ -133,11 +62,10 @@ TAU = 16.0                             # s, the SSI correlation lag
 NPERSEG_LONG = 8192                    # 0.0122 Hz at fs = 100 Hz
 NPERSEG_SHORT = 2048                   # 0.0488 Hz, forced by a 150 s record
 MATCH_TOL = 0.01                       # a pole matches a branch within 1 %
-# The tolerance is nearly half the split at the worked crossing, so a
-# separation rate quoted at one tolerance says as much about the tolerance as
-# about the method. Every rate below is reported across this ladder.
+# the 1 % tolerance is nearly half the split, so separation rates are also
+# reported across this ladder
 TOL_LADDER = (0.010, 0.005, 0.003, 0.002)
-PROM_DB = 3.0                          # the manuscript's peak-count rule
+PROM_DB = 3.0                          # 3 dB prominence rule for counting peaks
 U_DIP = np.sqrt(np.sqrt(5.0) - 2.0)    # 0.48587
 U_3DB = 1.1401                         # from run_damping's numeric bisection
 U_WORST = 2.0 / np.sqrt(3.0)           # 1.1547, where the merged peak is worst
@@ -146,20 +74,14 @@ SSI_CONFIGS = (("cov2", "cov", "sd"), ("dat2", "data", "sd"),
                ("cov1", "cov", "s"), ("dat1", "data", "s"))
 
 
-# ---------------------------------------------------------------------------
-# the truth, and the tension grid that realises a wanted detuning
-# ---------------------------------------------------------------------------
+# --- model truth and the tension grid ---
 
 def model_truth(T, cache={}):
-    """Frequencies, branch identities and detuning of the coupled model.
+    """Frequencies, branch identities and detuning of the coupled model at T.
 
-    ``d`` is the relative detuning of the two uncoupled resonators.  It is
-    measured two ways.  ``d`` itself is ``2 (f_iso1 - f0) / f0``, which is
-    exact for the two-mode pencil because coupling leaves the mean of the
-    pair where the mean of the uncoupled pair was; ``d_deck`` is the direct
-    ``(f_iso1 - f_deck) / f0`` using the deck with the stay present only as
-    its axial spring.  They agree to 0.02 percentage points across the whole
-    traverse, which is checked rather than assumed.
+    ``d = 2 (f_iso1 - f0) / f0``, exact for the two-mode pencil, which keeps
+    the pair mean. ``d_deck = (f_iso1 - f_deck) / f0`` uses the deck with the
+    stay present only as its axial spring; check [B] compares the two.
     """
     key = round(float(T), 3)
     if key in cache:
@@ -192,10 +114,8 @@ def model_truth(T, cache={}):
 
 
 def s_at_tuning(lo=1.40e5, hi=1.62e5, it=60):
-    """The split at exact tuning, by golden-section on the observed split.
-
-    Taken from the model rather than from the closed form, so the number the
-    laws are evaluated with is the number this bridge actually has.
+    """Split at exact tuning from the model, by golden-section search for the
+    minimum observed split. Returns (s, T).
     """
     g = 0.5 * (np.sqrt(5.0) - 1.0)
     a, b = lo, hi
@@ -231,21 +151,18 @@ def tension_for_d(d_target, lo=1.30e5, hi=1.80e5, it=60):
 
 
 def tension_grid(targets=D_TARGETS):
+    """Tensions that realize the detuning targets."""
     return [tension_for_d(d) for d in targets]
 
 
-# ---------------------------------------------------------------------------
-# grading, shared by every method so the comparison is like for like
-# ---------------------------------------------------------------------------
+# --- grading, shared by every method ---
 
 def grade_pair(cands, f_lo, f_hi, tol=MATCH_TOL):
     """How many of the two true branches a candidate list resolves.
 
-    Each true branch is matched to its nearest candidate; the branch counts
-    as found if that candidate is within ``tol``, and the pair counts as
-    separated only when the two branches are matched by DIFFERENT
-    candidates.  One frequency sitting between two close branches therefore
-    scores one, not two, which is the whole point of the count.
+    Each true branch is matched to its nearest candidate within ``tol``; the
+    pair counts as separated only when the branches match different
+    candidates. Returns (branches matched, separated, relative separation).
     """
     c = np.asarray([v for v in np.atleast_1d(cands) if np.isfinite(v)],
                    dtype=float)
@@ -266,10 +183,9 @@ def grade_pair(cands, f_lo, f_hi, tol=MATCH_TOL):
 def count_peaks_3db(f, P, window, half_width_hz, prom_db=PROM_DB):
     """Peaks of the smoothed decibel spectrum inside a window.
 
-    The manuscript's merge convention is a 3 dB prominence, so the count that
-    decides "the spectrum shows one peak or two" uses that rule and not the
-    statistical floor the frequency picker uses.  The smoothing is the same
-    three-bin decibel average ``oma_fdd`` applies before reading heights.
+    Counts peaks with at least ``prom_db`` prominence (the 3 dB merge
+    convention), after the same decibel smoothing ``oma_fdd`` applies.
+    Returns (count, peak frequencies).
     """
     m = (f >= window[0]) & (f <= window[1])
     if m.sum() < 5:
@@ -282,11 +198,9 @@ def count_peaks_3db(f, P, window, half_width_hz, prom_db=PROM_DB):
 def pair_window(tr, zeta):
     """A window around the true pair, wide enough to hold a merged peak.
 
-    The merged-peak law puts the surviving maximum OUTSIDE the pair, up to
-    ``sqrt(5)/2`` of the half separation beyond a branch, so a window clipped
-    to ``[f_lo, f_hi]`` would miss exactly the reading under study.  The
-    margin is therefore the larger of half the separation and two half-power
-    bandwidths, and the window is clipped to the analysis band.
+    A merged peak can lie outside ``[f_lo, f_hi]``, so the margin is the
+    larger of half the separation and two half-power bandwidths, clipped to
+    the analysis band.
     """
     sep = tr["f_hi"] - tr["f_lo"]
     marg = max(0.5 * sep, 4.0 * zeta * tr["f0"])
@@ -295,7 +209,9 @@ def pair_window(tr, zeta):
 
 
 def add_reading(out, tag, f_hat, T_true, f_iso):
-    """One method's frequency, tension and both error measures."""
+    """One method's frequency, tension and error measures, in percent:
+    ``eps`` = (f/f_iso1)^2 - 1, the coupling error the laws predict, and
+    ``errT``, the error against the true tension."""
     T_hat, e_ts, e_cp = errors(f_hat, T_true, f_iso)
     out["f_" + tag] = f_hat
     out["T_" + tag + "_kN"] = T_hat / 1e3 if np.isfinite(T_hat) else np.nan
@@ -304,29 +220,22 @@ def add_reading(out, tag, f_hat, T_true, f_iso):
     return out
 
 
-# ---------------------------------------------------------------------------
-# the subspace readings
-# ---------------------------------------------------------------------------
+# --- subspace readings ---
 
 def ssi_block(out, tag, y, fs, sd, method, tr, f_spec, db_stay, T_true):
-    """One SSI configuration: the poles it returns and the four readings.
+    """One SSI configuration: the poles it returns and its readings.
 
-    ``sd`` is the per-channel standard deviation AFTER the pipeline's
-    decimation and detrending.  ``oma_ssi.prepare`` scales every channel to
-    unit variance before the decomposition, so the identified mode shape is
-    in normalised units and its stay-to-deck ratio is meaningless until the
-    scaling is put back; multiplying component ``k`` by ``sd[k]`` restores
-    the physical shape.  Without that step the shape rule below would be
-    reading the normalisation, not the mode.
+    Readings from the in-band poles: amplitude (larger smoothed stay-channel
+    density), oracle (pole nearest the stay-dominated branch), shape (larger
+    stay-to-deck amplitude ratio, two channels only), trace
+    (``f_s^2 = f_+^2 + f_-^2 - f_d^2`` on the two strongest poles, with the
+    model deck frequency and with it 1 % high) and trace with the amplitude
+    reading as fallback.
 
-    ``db_stay`` is the SMOOTHED decibel spectrum of the stay channel, the
-    same curve the peak picker reads.  The amplitude rule below is an
-    engineer looking at a plot and taking the pole that stands taller there,
-    so it must read that curve and not the raw periodogram: a Welch density
-    scatters by about 27 per cent per line, which is enough to reverse the
-    rule between two poles of nearly equal height and would show up as a
-    property of the identification method rather than of the spectrum it is
-    being compared with.
+    ``sd`` is the per-channel standard deviation after decimation and
+    detrending; ``oma_ssi.prepare`` scales channels to unit variance, so
+    shape component ``k`` is multiplied by ``sd[k]`` to restore the physical
+    shape. ``db_stay`` is the smoothed dB stay spectrum the peak picker reads.
     """
     pref = tag
     out["fail_" + pref] = ""
@@ -399,11 +308,8 @@ def ssi_block(out, tag, y, fs, sd, method, tr, f_spec, db_stay, T_true):
         f_tr1 = float(np.sqrt(q1)) if q1 > 0 else np.nan
     add_reading(out, pref + "_tr", f_tr, T_true, tr["f_iso1"])
     out["errT_%s_tr1_pct" % pref] = errors(f_tr1, T_true, tr["f_iso1"])[1]
-    # (5) the trace rule as an engineer would actually be scored on it.
-    # Where the fitter returns fewer than two poles it returns no second
-    # frequency, and a tension must still be reported, so the fallback is the
-    # one-pole amplitude reading. Scoring only the records where two poles
-    # came back selects on the outcome and flatters the rule.
+    # (5) trace rule with fallback: with fewer than two poles, the amplitude
+    # reading is reported, so every record is scored
     f_trf = f_tr if np.isfinite(f_tr) else f_amp
     add_reading(out, pref + "_trf", f_trf, T_true, tr["f_iso1"])
     out["n_%s_poles" % pref] = int(len(fg))
@@ -411,9 +317,7 @@ def ssi_block(out, tag, y, fs, sd, method, tr, f_spec, db_stay, T_true):
     return out
 
 
-# ---------------------------------------------------------------------------
-# one state: one record, every method
-# ---------------------------------------------------------------------------
+# --- one state: one record, every method ---
 
 def analyse_state(sim, tr, s_tune, arm, duration, snr_db, seed, nperseg):
     """Every method on one record, and the two laws beside them."""
@@ -469,10 +373,8 @@ def analyse_state(sim, tr, s_tune, arm, duration, snr_db, seed, nperseg):
         Th = 4.0 * BRIDGE["mc"] * BRIDGE["Lc"] ** 2 * f_law ** 2
         out["T_%s_kN" % tag] = Th / 1e3
         out["errT_%s_pct" % tag] = 100.0 * (Th - T_true) / T_true
-    # the branch law signed by which branch actually carries the stay
-    # energy, rather than by the sign of d.  The two agree everywhere except
-    # at exact tuning, where sgn(d) has no content: the pair is symmetric
-    # there and which branch is called the stay branch is a label.
+    # branch law signed by the branch that carries the stay energy rather
+    # than by sgn(d); the two differ only at exact tuning
     sg = 1.0 if tr["f_stay_energy"] >= tr["f0"] else -1.0
     eb = sg * (np.hypot(d, s_tune) - abs(d))
     out["eps_branche_pct"] = 100.0 * eb
@@ -482,9 +384,7 @@ def analyse_state(sim, tr, s_tune, arm, duration, snr_db, seed, nperseg):
                            * f_be ** 2 / 1e3)
     out["errT_branche_pct"] = 100.0 * (1e3 * out["T_branche_kN"]
                                        - T_true) / T_true
-    # what the model itself gives when the right branch, and the wrong one,
-    # are read exactly.  The laws approximate these two numbers; an
-    # identification estimates them.
+    # exact readings of the stay branch and of the other branch
     other = (tr["f_lo"] if tr["f_stay_energy"] == tr["f_hi"] else tr["f_hi"])
     add_reading(out, "tbranch", tr["f_stay_energy"], T_true, tr["f_iso1"])
     add_reading(out, "twrong", other, T_true, tr["f_iso1"])
@@ -508,11 +408,8 @@ def analyse_state(sim, tr, s_tune, arm, duration, snr_db, seed, nperseg):
         _, bt, _ = grade_pair(pp["f"], tr["f_lo"], tr["f_hi"], tol=tl)
         out["both_pp_tol%g" % (1000 * tl)] = bt
     out["prom_db"] = pp["prom_db"]
-    # The control the campaign lacked. The two-pole trace identity is not the
-    # property of a subspace fitter: wherever the SPECTRUM resolves the pair,
-    # a single-channel peak picker supplies the same two frequencies. Applying
-    # the identity to them separates what the identity buys from what mode
-    # fitting buys, which is the whole of the comparison below.
+    # trace rule on the outermost picked peaks in the pair window, to separate
+    # the gain of the trace identity from that of mode fitting
     fs_pp = np.sort(np.asarray(pp.get("f_sorted", pp["f"]), dtype=float))
     fs_pp = fs_pp[(fs_pp >= win[0]) & (fs_pp <= win[1])]
     f_pp_tr = f_pp_tr1 = np.nan
@@ -583,20 +480,13 @@ def analyse_state(sim, tr, s_tune, arm, duration, snr_db, seed, nperseg):
     return out
 
 
-# ---------------------------------------------------------------------------
-# the campaign
-# ---------------------------------------------------------------------------
+# --- campaign ---
 
 def _init_worker():
-    """One thread per worker.
+    """One BLAS thread per worker.
 
-    The linear algebra in a single cell is small enough that its own
-    threading costs more than it buys, and twelve threads in each of six
-    workers oversubscribe the machine.  Workers are started with the SPAWN
-    context rather than fork: this parent has already run LAPACK before the
-    pool is built, and forking a process whose BLAS thread pool is live
-    deadlocks the child on its first call, which is what a first version of
-    this script did for ten minutes before it was killed.
+    Workers are started with the spawn context, because forking a process
+    whose BLAS thread pool is live can deadlock the child.
     """
     try:
         from threadpoolctl import threadpool_limits
@@ -649,17 +539,11 @@ def build_tasks(s_tune, quick=False):
 
 
 def campaign(args):
-    """Run the design, or the part of it ``--dur`` selects.
+    """Run the design, or the part ``--dur`` and ``--zeta`` select.
 
-    The campaign is splittable by record length because that is what its
-    memory demand scales with: an hour-long record at eight times
-    oversampling is a 3.4 million sample integration per channel, and eight
-    of those at once will be killed by the memory manager on a loaded
-    machine, which is what happened to the first attempt at 80 cells of 588.
-    Running the long records in their own pass at a lower worker count keeps
-    the peak bounded; ``--merge`` puts the parts back together, and the
-    result is identical to a single pass because every cell is independent
-    and every record is seeded.
+    Memory scales with record length, so long records can run in their own
+    pass with fewer workers; ``--merge`` joins the parts. Cells are
+    independent and seeded, so the result equals a single pass.
     """
     s_tune, T_tune = s_at_tuning()
     tasks = build_tasks(s_tune, quick=args.quick)
@@ -672,9 +556,9 @@ def campaign(args):
                                          for v in keep)]
     n_rec = sum(len(t[4]) for t in tasks)
     print("=" * 78)
-    print("THE CAMPAIGN")
+    print("SIMULATION RUN")
     print("=" * 78)
-    print("  split at exact tuning s = %.5f (%.3f per cent) at T = %.3f kN"
+    print("  split at exact tuning s = %.5f (%.3f percent) at T = %.3f kN"
           % (s_tune, 100 * s_tune, T_tune / 1e3))
     print("  %d cells, %d records, %d workers" % (len(tasks), n_rec,
                                                   args.nproc))
@@ -706,12 +590,10 @@ def campaign(args):
     return d
 
 
-# ---------------------------------------------------------------------------
-# verification
-# ---------------------------------------------------------------------------
+# --- verification ---
 
 def verify(args):
-    """Checks that must pass before any number here is quoted."""
+    """Model, law and pipeline checks; writes data/oma_verify.csv."""
     rows = []
 
     def add(check, **kw):
@@ -775,8 +657,7 @@ def verify(args):
     add("D", what="branch law at d = 0 equals s",
         value=abs(eps_branch_law(0.0, s_tune) - s_tune), tol=1e-15,
         ok=abs(eps_branch_law(0.0, s_tune) - s_tune) < 1e-15)
-    # at rho = 1 the two maxima are mirror images and which one the root
-    # finder returns is a convention, so the magnitude is what is checked
+    # at rho = 1 the two maxima are mirror images, so the magnitude is checked
     k = abs(xstar(U_WORST, 1.0) / U_WORST)
     add("D", what="merged peak |k| at u = 2/sqrt(3)", value=k,
         tol="sqrt(5)/2 = 1.118034",
@@ -784,14 +665,9 @@ def verify(args):
     poly = U_DIP ** 4 + 4 * U_DIP ** 2 - 1.0
     add("D", what="dip threshold solves u^4 + 4u^2 - 1", value=abs(poly),
         tol=1e-12, ok=abs(poly) < 1e-12)
-    # The closed-form merged law is a linearisation, 2 zeta x* - d, of the
-    # maximum of the exact two-mode receptance.  The two are compared here in
-    # MAGNITUDE, because at d = 0 the pair is symmetric and which of the two
-    # equal maxima a root finder returns is a convention with no content.
-    # They agree to 0.01 percentage points while the pair is resolved and
-    # part company in the deep merged regime, which is where the
-    # linearisation of a peak that is collapsing toward the mean should be
-    # expected to fail; both columns are carried in the output.
+    # the merged law, 2 zeta x* - d, linearizes the maximum of the exact
+    # two-mode receptance; magnitudes are compared (the sign is arbitrary at
+    # d = 0), with a looser tolerance for u < 1 where the linearization degrades
     dev_hi, dev_lo = [], []
     for zeta in ZETAS:
         for T in Ts:
@@ -819,7 +695,7 @@ def verify(args):
         add("E", what="f_%s matches oma_fdd.run_one" % a, value=dv,
             tol=0.0, ok=dv == 0.0)
 
-    # [F] the same record, identified twice, is identified identically
+    # [F] records are reproducible from their seed
     r1 = sim.record(duration=600.0, snr_db=20.0, seed=0)
     r2 = sim.record(duration=600.0, snr_db=20.0, seed=0)
     same = float(np.max(np.abs(r1["a_stay"] - r2["a_stay"])))
@@ -830,7 +706,7 @@ def verify(args):
     add("F", what="clean and noisy records share the excitation draw",
         value=dv, tol=0.0, ok=dv == 0.0)
 
-    # [G] the noise-free long-record limit: does the pipeline find the truth
+    # [G] noise-free hour-long record: SSI recovers both branches
     simq = RecordSimulator(T_TUNE, 0.002)
     trq = model_truth(T_TUNE)
     q = analyse_state(simq, trq, s_tune, "verify", 3600.0, None, 0,
@@ -843,7 +719,7 @@ def verify(args):
         add("G", what="%s recovers both branches on a clean hour, max error"
             % tag, value=e / trq["f0"], tol=2e-3, ok=e / trq["f0"] < 2e-3)
 
-    # [H] the shape rule reads the mode and not the normalisation
+    # [H] the shape rule reads the mode and not the normalization
     add("H", what="stay/deck ratio, stay-dominated pole (clean hour)",
         value=max(q["ratio_cov2_p1"], q["ratio_cov2_p2"]))
     add("H", what="stay/deck ratio, deck-dominated pole",
@@ -858,9 +734,7 @@ def verify(args):
     return df
 
 
-# ---------------------------------------------------------------------------
-# the report
-# ---------------------------------------------------------------------------
+# --- report ---
 
 METHODS = (("pp", "peak picking"), ("hp", "half power"),
            ("fdd", "FDD"), ("efdd", "EFDD"),
@@ -875,7 +749,7 @@ def _mad(x):
 
 
 def _pm(x):
-    """mean +- standard deviation over realisations, as text."""
+    """Mean +- standard deviation over realizations, as text."""
     x = np.asarray(x, dtype=float)
     x = x[np.isfinite(x)]
     if not len(x):
@@ -886,12 +760,9 @@ def _pm(x):
 def dev_from_law(s, tag, law):
     """Mean distance from a method's reading to a law's prediction.
 
-    ``branch`` takes the nearer of the two exact branch errors the model
-    itself carries, because a method that resolves the pair must return one
-    of the two and either is a branch reading.  ``merged`` takes the signed
-    merged-peak prediction, except at exact tuning, where the pair is
-    symmetric and the sign of that prediction carries no information, so the
-    nearer sign is used there.
+    ``branch``: distance to the nearer of the model's two exact branch errors.
+    ``merged``: distance to the signed merged-peak prediction, with the nearer
+    sign at exact tuning, where the pair is symmetric.
     """
     e = s["eps_%s_pct" % tag].to_numpy(dtype=float)
     if law == "branch":
@@ -907,23 +778,16 @@ def dev_from_law(s, tag, law):
 
 
 def field_trace(d, tag="cov2"):
-    """The trace rule with the deck frequency taken from the campaign itself.
+    """Trace rule with the deck frequency identified from the records.
 
-    ``f_s^2 = f_+^2 + f_-^2 - f_d^2`` needs the deck frequency, and the
-    version priced in the main table takes it from the model, which no
-    engineer has.  The field version takes it from the same instrument at the
-    same damping, noise and record length, at the most detuned tension in the
-    traverse, where the two poles are far apart and the deck-dominated one is
-    the pole with the SMALLER stay-to-deck amplitude ratio.  A stay's tension
-    moves with temperature over a season and the deck mode does not, so this
-    is an ordinary monitoring record and not a special experiment.
+    At the most detuned tension at each end of the traverse, the deck
+    frequency is the pole with the smaller stay-to-deck amplitude ratio; the
+    two ends are averaged. Same damping, noise, record length and seed.
     """
     rows = []
     key = ["zeta", "snr_db", "duration", "seed", "arm"]
     for k, g in d.groupby(key):
-        # one estimate from each end of the traverse, averaged.  A season
-        # carries the tension through both ends, so both records exist, and
-        # two estimates halve the error of the one input this rule needs.
+        # one deck-frequency estimate from each end of the traverse, averaged
         ests = []
         for side in (g[g["d"] < 0], g[g["d"] > 0]):
             if not len(side):
@@ -963,7 +827,7 @@ def _rms(x):
 
 
 def tune_at_tuning(d, dur, snr=20.0):
-    """The exact-tuning table at one record length."""
+    """Print the exact-tuning error table for one record length."""
     q = d[(d["duration"] == dur) & (d["snr_db"] == snr)
           & (np.abs(d["d"]) < 1e-6)]
     if not len(q):
@@ -986,27 +850,25 @@ def tune_at_tuning(d, dur, snr=20.0):
 
 
 def report(d):
+    """Print the summary tables of the campaign."""
     tune = d[np.abs(d["d"]) < 1e-6]
     print("\n" + "=" * 78)
-    print("1  THE DESIGN, AND WHAT THE SPECTRUM SHOWS")
+    print("1  PEAK COUNTS IN THE STAY SPECTRUM")
     print("=" * 78)
     base = d[(d["arm"] == "grid") & (d["duration"] == 600.0)
              & (d["snr_db"] == 20.0)]
     g = base[np.abs(base["d"]) < 1e-6]                # exact tuning
-    # Rates are quoted over the five tensions within 0.4 per cent of exact
-    # tuning rather than over the single tuned one.  Across that band u
-    # changes by 1.5 per cent, so the physics is the same and the sample is
-    # five times larger; error magnitudes stay at exact tuning, where the
-    # laws have one value rather than five.
+    # rates use the five tensions with |d| <= 0.4 % (u changes by 1.5 %);
+    # error magnitudes use exact tuning only
     gn = base[np.abs(base["d"]) <= 0.0041]
-    print("  600 s records at 20 dB, |d| <= 0.4 per cent")
-    print("  The two peak counts differ at light damping and the reason is")
-    print("  resolution, not merging: at zeta = 0.1 per cent the resonance")
-    print("  is half a Welch line wide, so where the peak falls between")
-    print("  lines moves its apparent height by several decibels and a")
-    print("  3 dB prominence rule loses one of two peaks that are plainly")
-    print("  there.  The bandwidth in lines is printed so that the reader")
-    print("  can see which counts are estimator artefacts.")
+    print("  600 s records at 20 dB, |d| <= 0.4 percent")
+    print("  At light damping the two peak counts differ because of the")
+    print("  line spacing: at zeta = 0.1 percent the resonance is half a")
+    print("  Welch line wide, so the position of a peak between lines")
+    print("  changes its apparent height by several decibels, and the")
+    print("  3 dB prominence rule can miss one of two peaks that are")
+    print("  present.  Column hpbw/df gives the half-power bandwidth in")
+    print("  lines.")
     print("  %6s %6s %8s %7s %7s %7s %7s"
           % ("zeta%", "u", "regime", "hpbw/df", "3 dB", "stat", "SSI-COV"))
     for z in sorted(gn["zeta"].unique()):
@@ -1019,10 +881,10 @@ def report(d):
                  s["n_cov2"].mean()))
 
     print("\n" + "=" * 78)
-    print("2  DOES MODE FITTING SEPARATE A PAIR THE SPECTRUM SHOWS AS ONE?")
+    print("2  BRANCH SEPARATION BY METHOD")
     print("=" * 78)
-    print("  fraction of records returning BOTH branches, within 1 per cent")
-    print("  600 s, 20 dB, |d| <= 0.4 per cent (%d records per row)"
+    print("  fraction of records returning both branches, within 1 percent")
+    print("  600 s, 20 dB, |d| <= 0.4 percent (%d records per row)"
           % gn.groupby("zeta").size().max())
     hdr = "  %6s %6s" % ("zeta%", "u")
     for tag, _ in METHODS:
@@ -1048,13 +910,13 @@ def report(d):
         print(row)
 
     print("\n" + "=" * 78)
-    print("2b IN THE MERGED REGIME, WHAT DOES A SEPARATING METHOD RETURN?")
+    print("2b SEPARATION AND TENSION ERROR IN THE MERGED REGIME")
     print("=" * 78)
-    print("  Records whose stay spectrum shows ONE peak in the pair window")
-    print("  under the 3 dB rule.  For those records: how often each method")
-    print("  still resolves two poles, and, on the records where SSI-COV")
-    print("  does resolve them, what the reading costs against what peak")
-    print("  picking cost on the SAME record.  |error| in tension, per cent.")
+    print("  Records whose stay spectrum shows one peak in the pair window")
+    print("  under the 3 dB rule: the fraction on which each method resolves")
+    print("  two poles and, on the records where SSI-COV resolves them, the")
+    print("  tension error of its reading and of peak picking on the same")
+    print("  records.  |error| in tension, percent.")
     mg = base[base["n_pp_pair3db"] <= 1]
     print("  %6s %6s %6s %7s %7s | %8s %8s %8s %8s"
           % ("zeta%", "u", "n", "cov2", "cov1", "branch", "merged", "COV or",
@@ -1073,27 +935,27 @@ def report(d):
     print("\n" + "=" * 78)
     print("3  THE TENSION EACH METHOD RETURNS AT THE CROSSING")
     print("=" * 78)
-    print("  Coupling error at exact tuning, per cent of tension, over %d"
+    print("  Coupling error at exact tuning, percent of tension, over %d"
           % g["seed"].nunique())
-    print("  realisations.  RMS, not the mean of the magnitudes: at exact")
-    print("  tuning the two branches are symmetric, a method returns one or")
-    print("  the other with the noise deciding, and the root mean square is")
-    print("  the one scalar that adds a bias and a scatter the way an")
-    print("  engineer suffers them.  The signed mean and its scatter follow")
-    print("  for the two readings whose difference is the whole question.")
+    print("  realizations.  At exact tuning the two branches are symmetric")
+    print("  and a method returns either one, depending on the noise, so")
+    print("  the table gives the root mean square, which combines bias and")
+    print("  scatter.")
+    print("  The last two columns give the signed mean and standard")
+    print("  deviation for peak picking and the SSI-COV oracle reading.")
     for dur in sorted(d["duration"].unique()):
         tune_at_tuning(d, dur)
 
     print("\n" + "=" * 78)
-    print("4  WHICH LAW DOES EACH METHOD OBEY?")
+    print("4  DISTANCE OF EACH METHOD FROM THE TWO LAWS")
     print("=" * 78)
     print("  Two distances, both in percentage points of tension.  BRANCH is")
     print("  the distance from the reading to the nearer of the two exact")
-    print("  branch errors of the model, which is what 'the branch law")
-    print("  returns in full' means for a method that has to pick one of two")
-    print("  poles.  MERGED is the distance to the merged-peak prediction;")
+    print("  branch errors of the model, since a method returns one of the")
+    print("  two poles.  MERGED is the distance to the merged-peak prediction;")
     print("  at exact tuning, where the pair is symmetric and the sign of")
-    print("  that prediction is a label, the nearer of the two signs is used.")
+    print("  that prediction is arbitrary, the nearer of the two signs")
+    print("  is used.")
     gg = d[(d["arm"] == "grid") & (d["duration"] == 600.0)
            & (d["snr_db"] == 20.0)]
     print("  600 s at 20 dB, whole traverse, mean over %d records per cell"
@@ -1114,18 +976,18 @@ def report(d):
         print(row)
 
     print("\n" + "=" * 78)
-    print("5  THE DANGER BAND, MEASURED PER METHOD")
+    print("5  SWING OF THE COUPLING ERROR OVER THE TRAVERSE, PER METHOD")
     print("=" * 78)
     print("  Half the peak-to-peak of the signed coupling error over the")
-    print("  traverse, per cent: the swing a seasonal tension cycle would")
-    print("  put through the reading.  It is formed WITHIN each realisation")
+    print("  traverse, percent: the swing a seasonal tension cycle would")
+    print("  put through the reading.  It is formed within each realization")
     print("  and then averaged, because near exact tuning the branch a")
     print("  method returns flips with the noise, and averaging the readings")
-    print("  before taking the range would cancel the very excursion the")
-    print("  band is meant to measure.  The two law columns are the same")
-    print("  statistic evaluated on the model, on the same 17 tensions;")
-    print("  run_dangerband uses 321 and reports 4 per cent more swing.")
-    print("  branch value s = %.2f per cent" % (100 * d["s_tune"].iloc[0]))
+    print("  before taking the range would cancel that swing.  The two law")
+    print("  columns give the same statistic evaluated on the model at the")
+    print("  same 17 tensions; run_dangerband uses 321 tensions and gives")
+    print("  a swing 4 percent larger.")
+    print("  branch value s = %.2f percent" % (100 * d["s_tune"].iloc[0]))
 
     def swing(s, tag):
         vals = []
@@ -1204,7 +1066,7 @@ def report(d):
     print("\n" + "=" * 78)
     print("7  USING BOTH POLES: THE TRACE RULE")
     print("=" * 78)
-    print("  RMS tension error, per cent, at exact tuning, 20 dB")
+    print("  RMS tension error, percent, at exact tuning, 20 dB")
     for dur in sorted(d["duration"].unique()):
         q = d[(d["duration"] == dur) & (d["snr_db"] == 20.0)
               & (np.abs(d["d"]) < 1e-6)]
@@ -1224,13 +1086,13 @@ def report(d):
                      int(np.isfinite(s["errT_cov2_tr_pct"]).sum())))
 
     print("\n" + "=" * 78)
-    print("8  THE TRACE RULE WITH A DECK FREQUENCY THE CAMPAIGN MEASURED")
+    print("8  THE TRACE RULE WITH THE DECK FREQUENCY IDENTIFIED FROM THE RECORDS")
     print("=" * 78)
     ft = field_trace(d[d["arm"] == "grid"])
     if len(ft):
         print("  deck frequency identified at the most detuned tension of "
               "each traverse")
-        print("  its own error: %.3f +- %.3f per cent"
+        print("  deck frequency error: %.3f +- %.3f percent"
               % (ft["f_deck_err_pct"].mean(), ft["f_deck_err_pct"].std()))
         print("  %6s %8s | %-22s %-22s"
               % ("zeta%", "records", "|errT| at tuning, %", "|errT| whole "
@@ -1247,7 +1109,7 @@ def report(d):
         print("  no traverse had two poles at its most detuned tension")
 
     print("\n" + "=" * 78)
-    print("9  WHAT THE DAMPING ESTIMATES DO AT THE CROSSING")
+    print("9  DAMPING ESTIMATES AT THE CROSSING")
     print("=" * 78)
     print("  estimate divided by the true damping ratio, 600 s at 20 dB")
     print("  %6s %6s %14s %14s %14s"
@@ -1260,7 +1122,7 @@ def report(d):
                  _pm(s_["zeta_efdd_ratio"]), _pm(zc)))
 
     print("\n" + "=" * 78)
-    print("9b IS ANY METHOD CLOSER TO THE TRUTH THAN PEAK PICKING?")
+    print("9b PAIRED COMPARISON WITH PEAK PICKING")
     print("=" * 78)
     print("  paired on the same record: fraction of records where the")
     print("  method's |tension error| is smaller than peak picking's, and")
@@ -1286,7 +1148,7 @@ def report(d):
                  np.mean(at[mt] - bt[mt]) if mt.any() else np.nan))
 
     print("\n" + "=" * 78)
-    print("10 WHAT FAILED")
+    print("10 FAILURES")
     print("=" * 78)
     for tag, name in METHODS:
         col = "f_" + tag

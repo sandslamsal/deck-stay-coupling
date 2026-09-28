@@ -1,17 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Verification of src/cablefe.py against closed forms and limits.
+"""Verify src/cablefe.py against closed forms and limits.
 
-Nothing in the pilot is worth reading until these pass.  Six checks:
-
-  V1  stay as a taut string          EI -> 0, against n/(2L) sqrt(T/m)
-  V2  stay as a tensioned beam       against the exact pinned-pinned form
-  V3  deck alone                     against (n pi/L)^2/(2 pi) sqrt(EI/m)
-  V4  stay with no bending           T -> 0 limit recovers the plain beam
-  V5  mesh convergence               frequencies settle as the chain refines
-  V6  decoupling limit               cos(theta) -> 0 must return the two
-                                     uncoupled spectra, which is the check
-                                     that the tie is what produces veering
-                                     and not an assembly error
+Checks V1 taut string (EI -> 0), V2 pinned-pinned tensioned beam, V3 simply
+supported deck, V4 stay with T -> 0 against the plain beam, V5 mesh
+convergence of the coupled system, and V6 theta -> 90 deg against the two
+uncoupled spectra.
 
 Run:  python3 scripts/verify_cablefe.py
 """
@@ -116,10 +109,10 @@ def main():
 
     print()
     print("=" * 72)
-    print("V6  decoupling limit: theta -> 90 deg kills the transverse tie")
+    print("V6  decoupling limit: theta -> 90 deg removes the transverse tie")
     print("=" * 72)
-    print("      cos(theta) multiplies the tie, so a vertical stay must give")
-    print("      back the two uncoupled spectra exactly.")
+    print("      cos(theta) multiplies the tie, so a vertical stay returns")
+    print("      the two uncoupled spectra.")
     cd = CableDeck(Ld=80.0, EId=2.0e9, md=1000.0,
                    Lc=25.0, EIc=1.2e4, mc=5.5, T=400e3, EA=1.4e8,
                    theta=np.deg2rad(90.0), nd=60, nc=60)
@@ -137,7 +130,7 @@ def main():
 
     print()
     print("=" * 72)
-    print("ALL CHECKS PASS" if ok else "SOMETHING FAILED, DO NOT USE THE MODEL")
+    print("All checks pass" if ok else "One or more checks failed")
     print("=" * 72)
     return 0 if ok else 1
 

@@ -1,25 +1,13 @@
 # -*- coding: utf-8 -*-
-"""Figure: the two idealisations the reviewers questioned, computed.
+"""Figure of the effect of stay sag and pylon flexibility on the veering width.
 
-Panel (a): the second route. The veering width of the two-dimensional
-model, drawn along the stay's sagged profile, relative to the straight-chord
-law of Eq. (5), against the ratio r of the elastic route to the transverse
-tie. On the worked bridge the sag is raised alone (gravity scaled,
-everything else held) at the fundamental; the line is |1 - r|. Reads
-data/sag.csv (scripts/run_sag.py) and the direct gravity checks.
-
-Panel (b): the campaign re-solved with the sag drawn at each design's own
-gravity: the coupling error of the incumbent reading against the extended
-law, marked by the size of r. Reads data/campaign_sag.csv
-(scripts/run_campaign_sag.py).
-
-Panel (c): pylon. The width with a pylon of the stay's height whose sway
-frequency is scanned across the host mode the stay meets, relative to the
-rigid-pylon law: the finite element against the two-ended reduction, on the
-worked bridge and on the longest-deck campaign design. Reads
-data/pylon.csv (scripts/run_pylon.py).
-
-Run:  python3 scripts/fig_sagpylon.py
+(a) Sagged-profile width on the example bridge relative to the straight-chord
+    law, against the second-route ratio r_1 (data/sag.csv, scripts/run_sag.py).
+(b) Coupling error of the sagged design set against the law with sag
+    (data/campaign_sag.csv, scripts/run_campaign_sag.py).
+(c) Width with a swaying pylon relative to the rigid-pylon law, finite element
+    and two-ended reduction (data/pylon.csv, scripts/run_pylon.py).
+Writes fig_sagpylon.png and .pdf.  Run:  python3 scripts/fig_sagpylon.py
 """
 from __future__ import annotations
 
@@ -38,11 +26,12 @@ import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.lines import Line2D  # noqa: E402
 
 DATA = os.path.join(ROOT, "data")
-OUT = os.path.join(ROOT, "revision 1", "sources", "figures")
+OUT = os.environ.get("FIGURE_DIR", os.path.join(ROOT, "figures"))
 G = 9.80665
 
 
 def r_of(theta, EA, T, mc, g, Lc, n=1):
+    """Second-route ratio r_n = 2 sin(theta) (EA/T) (m g L / T) / (n pi)^2."""
     return 2 / (n ** 2 * np.pi ** 2) * np.sin(theta) * (EA / T) * (mc * g * Lc / T)
 
 
@@ -50,7 +39,7 @@ def main():
     F.apply()
     fig, (a1, a2, a3) = plt.subplots(1, 3, figsize=(F.FIG_W, 2.55))
 
-    # ---- (a) the second route on the worked bridge ------------------------
+    # --- (a) second route on the example bridge ---
     s = pd.read_csv(os.path.join(DATA, "sag.csv"))
     w = s[((s.case == "worked") & (s.n == 1) & (s.tension_variation == 0))
           | (s.case == "worked_gmult")].copy()
@@ -70,7 +59,7 @@ def main():
     a1.legend(loc="upper left", fontsize=9.3, labelspacing=0.22, frameon=False)
     F.panel(a1, "a", "the second route")
 
-    # ---- (b) the sagged campaign against the extended law -----------------
+    # --- (b) sagged design set against the law with sag ---
     c = pd.read_csv(os.path.join(DATA, "campaign_sag.csv"))
     g = c[(c.mac > 0.5) & (c.xi > 150) & (c.share > 0.5) & c.eps_coupling_sag.notna()].copy()
     g["y"] = 100 * g.eps_coupling_sag.abs()
@@ -93,7 +82,7 @@ def main():
     a2.legend(loc="upper left", fontsize=9.3, labelspacing=0.2, frameon=False, handletextpad=0.3)
     F.panel(a2, "b", "the sagged design set")
 
-    # ---- (c) pylon --------------------------------------------------------
+    # --- (c) pylon ---
     p = pd.read_csv(os.path.join(DATA, "pylon.csv"))
     sets = (("worked_pylon", 1, "n1", "example bridge"),
             ("longspan_pylon", 1, "n3", "560 m design"))
@@ -131,7 +120,7 @@ def main():
     fig.savefig(png)
     fig.savefig(png.replace(".png", ".pdf"))
     print(f"  wrote {png}")
-    print("  worked bridge points (r, ratio):", ", ".join(f"({a:.2f}, {b:.2f})" for a, b in zip(w.r, w.ratio)))
+    print("  example bridge points (r, ratio):", ", ".join(f"({a:.2f}, {b:.2f})" for a, b in zip(w.r, w.ratio)))
 
 
 if __name__ == "__main__":

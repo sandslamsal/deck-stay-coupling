@@ -1,15 +1,10 @@
 # -*- coding: utf-8 -*-
 """Compute the veering loci for one bridge as the stay tension is varied.
 
-Everything in this study rests on one claim about the physics: near a
-crossing there is no isolated stay mode to measure.  This figure shows that
-happening.
+Writes data/veering_loci.csv (one row per mode per tension) and
+data/veering_branches.csv (one row per tension), read by fig_veering.py.
 
-Separated from the plotting because it costs minutes and the figure needs
-iterating.  Writes data/veering_loci.csv (one row per mode per tension) and
-data/veering_branches.csv (one row per tension).
-
-Run:  python3 scripts/run_veering.py
+Run: python3 scripts/run_veering.py
 """
 
 from __future__ import annotations
@@ -38,7 +33,7 @@ BAND = (2.6, 4.2)          # the frequency window the crossing sits in
 
 
 def deck_ref(cd):
-    """Deck-alone frequency and mass-normalised amplitude at the anchorage."""
+    """Deck-alone frequencies and mass-normalized anchorage amplitudes."""
     Kd, Md = chain(cd.Ld, cd.nd, cd.EId, cd.md, 0.0)
     Kd = Kd.copy()
     Kd[2 * cd.ia, 2 * cd.ia] += cd.k_ax
@@ -72,6 +67,7 @@ def main():
                        mu_effective(BRIDGE["mc"] * BRIDGE["Lc"] / 2.0,
                                     phia[k]))
 
+        # stay mode chosen by MAC against the isolated sine shape
         cdofs = np.array(cd.cable_dofs())
         x = np.linspace(0.0, 1.0, len(cdofs))
         tgt = np.sin(N_STAY * np.pi * x)

@@ -1,40 +1,14 @@
 # -*- coding: utf-8 -*-
-"""Planar cable-deck model with the stay drawn in two dimensions: sag and a
-flexible pylon.  Revision 1 extension of ``cablefe.py``.
+"""Planar cable-deck model with the stay drawn in two dimensions, for sag and
+a flexible pylon.
 
-``cablefe.CableDeck`` carries the stay as a straight chain of transverse
-Euler-Bernoulli elements, enters the deck axially through a spring
-k_ax = (EA / L_c) sin^2(theta) and transversely through the tie
-v(L_c) = cos(theta) w_d, and holds the top of the stay at a rigid pylon.  Two
-reviewers asked what happens when the stay sags (R1.5, R2.2) and when the
-pylon sways (R2.3, R2.4).  Both need the stay to have a shape and an axial
-degree of freedom, so here the stay is a chain of planar FRAME elements
-(axial + bending, three degrees of freedom per node, global coordinates)
-laid along its static profile:
-
-* profile: the parabola of a cable under gravity, drawn as a vertical
-  offset below the chord, mid-sag d_v = m g L_c^2 / (8 T), so that the sag
-  normal to the chord is d_v cos(theta) = m g cos(theta) L_c^2 / (8 T).  The
-  gravity that draws it is a PARAMETER ``g`` so that the sag can be varied
-  with everything else held (frequencies, axial spring, mass ratio);
-* axial force along the stay: T at mid-length, varying by m g sin(theta)
-  along the chord as the upper part carries the weight below it;
-* the two routes into the deck are no longer imposed: the anchorage node
-  moves with the deck vertically and the element geometry resolves that
-  motion along and across the chord by itself.  With g = 0 the model must
-  reproduce ``CableDeck`` and it is checked to (``scripts/verify_cablefe2d.py``);
-* pylon (optional): a vertical cantilever of frame elements from deck level
-  to the stay's top, fixed at its base, carrying the stay's top node.  Its
-  tip sways and drives the stay from the second end.  The compression
-  T sin(theta) it carries enters its geometric stiffness.
-
-Retained idealisations: planar motion; deck as a simply supported beam with
-vertical and rotational degrees of freedom only, so the anchorage does not
-move horizontally; no damping; tension a parameter.
-
-Verification targets: ``CableDeck`` in the straight limit; Irvine's
-symmetric in-plane modes of the sagged stay alone; the two-ended reduction
-of the coupling with a swaying pylon.
+Extends ``cablefe.CableDeck``: the stay is a chain of planar frame elements
+(axial and bending) laid along its static parabola, with the sag set by a
+gravity parameter ``g`` and the axial force varying along the chord; an
+optional pylon is a vertical cantilever carrying the stay's top node. Also
+provides Irvine's lambda^2 and symmetric-mode roots for an inclined cable, and
+the one-ended and two-ended closed forms of the veering split. Checked by
+``scripts/verify_cablefe2d.py``.
 """
 from __future__ import annotations
 
@@ -115,8 +89,7 @@ def irvine_lambda2_chord(L, T, EA, m, theta, g=G):
     chord length ``L``; ``L_e = L (1 + 8 (d_n/L)^2)`` with the normal sag
     ``d_n = m g cos(theta) L^2 / (8 T)``.  Irvine's treatment of the inclined
     cable: the horizontal-cable theory holds with ``g -> g cos(theta)`` and
-    the horizontal tension replaced by the chord tension.  This is the form
-    the finite element of this module is checked against.
+    the horizontal tension replaced by the chord tension.
     """
     dn = m * g * np.cos(theta) * L ** 2 / (8.0 * T)
     Le = L * (1.0 + 8.0 * (dn / L) ** 2)
@@ -149,7 +122,9 @@ class CableDeck2D:
 
     Parameters as ``cablefe.CableDeck`` plus ``g`` (gravity drawing the sag;
     0 for a straight chord) and ``pylon = dict(EI, m, EA, n)`` for a flexible
-    pylon of the stay's own height (``None`` for rigid).
+    pylon of the stay's own height (``None`` for rigid).  Planar motion, no
+    damping; the deck is simply supported and the anchorage does not move
+    horizontally.
     """
 
     def __init__(self, Ld, EId, md, Lc, EIc, mc, T, EA, theta,
@@ -158,10 +133,8 @@ class CableDeck2D:
         self.Ld, self.EId, self.md = Ld, EId, md
         self.Lc, self.EIc, self.mc = Lc, EIc, mc
         self.T, self.EA, self.theta, self.g = T, EA, theta, g
-        # the weight component along the chord makes the tension vary along
-        # the stay; Irvine's theory neglects it, so the switch lets the
-        # verification meet Irvine on his own terms and the sag study state
-        # which case it computed
+        # tension_variation=False holds T uniform along the stay, as
+        # Irvine's theory assumes
         self.tension_variation = tension_variation
         self.nd, self.nc = nd, nc
         self.x_anchor = 0.5 * Ld if x_anchor is None else x_anchor
@@ -301,7 +274,7 @@ class CableDeck2D:
         """Deck (+ pylon) with the stay present only as a massless bar of
         stiffness EA / L_c between its two ends: the host of the reduction.
 
-        Returns ``(f, phi_a, phi_p)``: frequencies, mass-normalised vertical
+        Returns ``(f, phi_a, phi_p)``: frequencies, mass-normalized vertical
         ordinate at the anchorage, and horizontal ordinate at the pylon top
         (zero for a rigid pylon)."""
         Kd, Md = chain(self.Ld, self.nd, self.EId, self.md, 0.0)
@@ -345,7 +318,8 @@ class CableDeck2D:
 # ---------------------------------------------------------------------------
 
 def split_one_ended(M_s, phi_a, theta, n=1):
-    """Eq. (5): s = (2 / n pi) cos(theta) sqrt(M_s) |phi_a|."""
+    """Split with the stay driven at the anchorage only:
+    s = (2 / n pi) cos(theta) sqrt(M_s) |phi_a|."""
     return 2.0 / (n * np.pi) * np.sqrt(M_s) * np.abs(np.cos(theta) * phi_a)
 
 
@@ -359,7 +333,7 @@ def split_two_ended(M_s, phi_a, phi_p, theta, n=1):
 
     ``phi_p`` is the host mode's horizontal ordinate at the pylon top, taken
     positive toward the anchorage, and ``phi_a`` its vertical ordinate at
-    the anchorage, positive upward, both mass-normalised in the host.
+    the anchorage, positive upward, both mass-normalized in the host.
     """
     c, s = np.cos(theta), np.sin(theta)
     return 2.0 / (n * np.pi) * np.sqrt(M_s) * np.abs(c * phi_a - (-1) ** n * s * phi_p)
