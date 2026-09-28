@@ -1,0 +1,8 @@
+block,item,quantity,value,unit,note
+lam2_distribution,graded population,n_designs,421,-,xi > 150
+lam2_distribution,graded population,median_lam2,0.04152,-,chord form
+lam2_distribution,graded population,n_lam2_gt_0p1,155,-,
+lam2_distribution,graded population,n_lam2_gt_1,40,-,
+lam2_distribution,error law,R2_all,0.9947,-,
+lam2_distribution,error law,R2_lam2_le_1,0.9946,-,n = 381
+lam2_distribution,error law,R2_lam2_gt_1,0.9962,-,n = 40

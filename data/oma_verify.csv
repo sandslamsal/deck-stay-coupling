@@ -1,0 +1,27 @@
+check,what,value,tol,ok
+A,split at exact tuning s,0.023360441901644855,quoted 2.34 %,True
+A,"tension at exact tuning, kN",151.3156774999971,,True
+A,"tension grid hits its detuning targets, max |error|",4.560332274132495e-09,1e-07,True
+A,"tensions spanned, kN",139.85 to 164.17,,
+B,"|d - d_deck| over the traverse, max",0.00021825055175255653,0.0005,True
+B,"|hypot(d, s) - observed split|, max",0.000585198101204519,0.001,True
+C,"trace rule on EXACT model frequencies, max |eps|",0.0006995936529610169,0.002,True
+C,"  the same, as a fraction of the branch bias s",0.02994779190849798,,
+C,"1 % error in the deck frequency costs, in tension",0.02007827450127031,,
+D,branch law at d = 0 equals s,0.0,1e-15,True
+D,merged peak |k| at u = 2/sqrt(3),1.1180339887498953,sqrt(5)/2 = 1.118034,True
+D,dip threshold solves u^4 + 4u^2 - 1,4.440892098500626e-16,1e-12,True
+D,"merged law vs 2-DOF FRF maximum, u > 1, max",0.0006254661863700356,0.001,True
+D,"merged law vs 2-DOF FRF maximum, u < 1, max",0.007321958411423648,0.01,True
+E,f_pp matches oma_fdd.run_one,0.0,0.0,True
+E,f_hp matches oma_fdd.run_one,0.0,0.0,True
+E,f_fdd matches oma_fdd.run_one,0.0,0.0,True
+E,f_efdd matches oma_fdd.run_one,0.0,0.0,True
+F,"record(seed) is reproducible, max |difference|",0.0,0.0,True
+F,clean and noisy records share the excitation draw,0.0,0.0,True
+G,"cov2 recovers both branches on a clean hour, max error",8.719041802040361e-05,0.002,True
+G,"dat2 recovers both branches on a clean hour, max error",0.00014984999333725183,0.002,True
+G,"cov1 recovers both branches on a clean hour, max error",0.00011308032000741006,0.002,True
+G,"dat1 recovers both branches on a clean hour, max error",0.00010425825730336353,0.002,True
+H,"stay/deck ratio, stay-dominated pole (clean hour)",5.922571040796488,,
+H,"stay/deck ratio, deck-dominated pole",4.509557468607751,,

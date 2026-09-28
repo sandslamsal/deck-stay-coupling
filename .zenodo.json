@@ -1,0 +1,27 @@
+{
+  "title": "Deck-stay modal coupling and the bias of vibration-based cable force identification on cable-stayed bridges: code and data",
+  "upload_type": "software",
+  "description": "Code and data behind the results of the manuscript of the same title, currently under review: the planar coupled cable-deck finite element model, its two-dimensional extension with sag and a flexible pylon, the closed-form reductions, the parametric study of 699 designs and its re-solution with sag, the comparison of identification methods, and the resolvability and reading-method studies. One script per result, each writing the file its table or figure reads; see README.md. The validation scripts for the field and laboratory records are included, but the measurements they use, transcribed from published sources cited in README.md, are not redistributed. Code is MIT licensed; data generated in this study are CC BY 4.0.",
+  "creators": [
+    {
+      "name": "Lamsal, Sandesh",
+      "affiliation": "AtkinsRéalis USA Inc.; University of Miami",
+      "orcid": "0009-0007-9267-4019"
+    },
+    {
+      "name": "Bhandari, Rubi",
+      "affiliation": "EAC Consulting, Inc.; Florida International University",
+      "orcid": "0009-0005-3650-4619"
+    }
+  ],
+  "license": "MIT",
+  "keywords": [
+    "cable force identification",
+    "cable-stayed bridge",
+    "deck-stay interaction",
+    "frequency loci veering",
+    "mode localization",
+    "structural health monitoring"
+  ],
+  "access_right": "open"
+}

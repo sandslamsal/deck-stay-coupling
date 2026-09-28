@@ -1,0 +1,49 @@
+# manuscript, submissions and working notes stay out of the public repository
+original submission/
+revision 1/
+refs_pulled/
+notes/
+DEVLOG.md
+
+# ---------------------------------------------------------------------------
+# Third-party data. Measurements transcribed or digitized from published
+# sources are used for validation but are not redistributed. The sources are
+# cited in README.md ("Third-party data") and in the paper's data statement.
+# ---------------------------------------------------------------------------
+# tables transcribed from the sources, read by the validation scripts
+data/external/
+# figure captures used for digitizing a published experiment
+data/expt_0/
+# files that hold or are derived from the transcribed measurements
+data/aveiro.csv
+data/jindo.csv
+data/jindo_window.csv
+data/ondra.csv
+data/ondra_events.csv
+data/pontedelmare.csv
+data/pontedelmare_all.csv
+data/pontedelmare_sag.csv
+data/stay_census.csv
+data/stay_census_summary.csv
+data/intersection.csv
+data/intersection_summary.csv
+data/intersection_sistral_check.csv
+data/n4w_bound.csv
+data/traverse.csv
+data/falsify_traverse.csv
+data/falsify_traverse_thresholds.csv
+# tools that digitized the published figures and tables from the sources' PDFs
+scripts/expt_0_check.py
+scripts/expt_2_check.py
+scripts/kumar_vector_reads.py
+# literature-search tooling and its bibliographic records
+scripts/lit_search.py
+scripts/prior_art_check.py
+scripts/fetch_refs.py
+data/lit_search.csv
+data/prior_art_check.csv
+
+# python and mac
+__pycache__/
+*.pyc
+.DS_Store

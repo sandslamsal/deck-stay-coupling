@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use this code or data, please cite the manuscript and this repository."
+title: "Deck-stay modal coupling and the bias of vibration-based cable force identification on cable-stayed bridges: code and data"
+authors:
+  - family-names: Lamsal
+    given-names: Sandesh
+    orcid: "https://orcid.org/0009-0007-9267-4019"
+    affiliation: "AtkinsRéalis USA Inc.; University of Miami"
+  - family-names: Bhandari
+    given-names: Rubi
+    orcid: "https://orcid.org/0009-0005-3650-4619"
+    affiliation: "EAC Consulting, Inc.; Florida International University"
+repository-code: "https://github.com/sandslamsal/deck-stay-coupling"
+license: MIT
+version: "1.0.0"
+date-released: "2026-09-27"
+keywords:
+  - cable force identification
+  - cable-stayed bridge
+  - deck-stay interaction
+  - frequency loci veering
+  - mode localization
+  - structural health monitoring
