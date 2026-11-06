@@ -2,7 +2,7 @@
 """Figure of the effect of stay sag and pylon flexibility on the veering width.
 
 (a) Sagged-profile width on the example bridge relative to the straight-chord
-    law, against the second-route ratio r_1 (data/sag.csv, scripts/run_sag.py).
+    law, against the dynamic-tension ratio r_1 (data/sag.csv, scripts/run_sag.py).
 (b) Coupling error of the sagged design set against the law with sag
     (data/campaign_sag.csv, scripts/run_campaign_sag.py).
 (c) Width with a swaying pylon relative to the rigid-pylon law, finite element
@@ -31,7 +31,7 @@ G = 9.80665
 
 
 def r_of(theta, EA, T, mc, g, Lc, n=1):
-    """Second-route ratio r_n = 2 sin(theta) (EA/T) (m g L / T) / (n pi)^2."""
+    """Dynamic-tension ratio r_n = 2 sin(theta) (EA/T) (m g L / T) / (n pi)^2."""
     return 2 / (n ** 2 * np.pi ** 2) * np.sin(theta) * (EA / T) * (mc * g * Lc / T)
 
 
@@ -39,7 +39,7 @@ def main():
     F.apply()
     fig, (a1, a2, a3) = plt.subplots(1, 3, figsize=(F.FIG_W, 2.55))
 
-    # --- (a) second route on the example bridge ---
+    # --- (a) dynamic-tension coupling on the example bridge ---
     s = pd.read_csv(os.path.join(DATA, "sag.csv"))
     w = s[((s.case == "worked") & (s.n == 1) & (s.tension_variation == 0))
           | (s.case == "worked_gmult")].copy()
@@ -51,13 +51,13 @@ def main():
     a1.plot(w.r, w.ratio, ls="none", **{k: v for k, v in F.style("n1", label=False).items()
                                          if k in ("color", "marker")}, ms=5.5,
             label="example bridge")
-    a1.set_xlabel(r"second-route ratio  $r_1$")
+    a1.set_xlabel(r"dynamic-tension ratio  $r_1$")
     a1.set_ylabel(r"width ratio  $s / s_{\mathrm{straight}}$")
     a1.set_xlim(-0.2, 8.6)
     F.clean(a1)
     F.headroom(a1, top=0.30)
     a1.legend(loc="upper left", fontsize=9.3, labelspacing=0.22, frameon=False)
-    F.panel(a1, "a", "the second route")
+    F.panel(a1, "a", "dynamic-tension coupling")
 
     # --- (b) sagged design set against the law with sag ---
     c = pd.read_csv(os.path.join(DATA, "campaign_sag.csv"))
@@ -90,7 +90,7 @@ def main():
     F.clean(a2)
     a2.legend(loc="upper left", bbox_to_anchor=(-0.04, 1.02), borderaxespad=0.2, fontsize=9.3,
               labelspacing=0.2, frameon=False, handletextpad=0.3, handlelength=1.2)
-    F.panel(a2, "b", "the sagged design set")
+    F.panel(a2, "b", "sagged design set")
 
     # --- (c) pylon ---
     p = pd.read_csv(os.path.join(DATA, "pylon.csv"))

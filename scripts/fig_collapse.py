@@ -48,7 +48,7 @@ def main():
     ax1.set_ylabel(r"tension error $\varepsilon$  (%)")
     F.clean(ax1)
     ax1.legend(loc="upper right", fontsize=F.FS_LEGEND)
-    F.panel(ax1, "a", "the closed form")
+    F.panel(ax1, "a", "closed form")
 
     # ---- (b) the collapse ------------------------------------------------
     for i, key in enumerate(F.ORDERS, start=1):
@@ -67,7 +67,7 @@ def main():
     F.clean(ax2)
     ax2.legend(loc="upper left", fontsize=F.FS_SMALL, ncol=1,
                labelspacing=0.22, borderaxespad=0.1)
-    F.panel(ax2, "b", "the parametric study")
+    F.panel(ax2, "b", "parametric study")
 
     # ---- (c) the criterion ----------------------------------------------
     mu = np.logspace(-4, -1, 500)

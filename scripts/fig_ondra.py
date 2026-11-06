@@ -65,7 +65,7 @@ def main():
     a1.set_ylim(0, 22)
     F.clean(a1)
     a1.legend(loc="lower left", fontsize=9.0, labelspacing=0.24, frameon=False)
-    F.panel(a1, "a", "the width, and the $1/n$ scaling")
+    F.panel(a1, "a", "width and $1/n$ scaling")
     # a flat n s line is the 1/n scaling
     F.note(a1, 0.52, 0.80, r"$s \propto 1/n$", fontsize=10.0, color="0.30")
 
@@ -85,7 +85,7 @@ def main():
     F.clean(a2)
     F.headroom(a2, top=0.30)
     a2.legend(loc="lower right", fontsize=9.0, labelspacing=0.24, frameon=False)
-    F.panel(a2, "b", "the tension error it induces")
+    F.panel(a2, "b", "induced tension error")
 
     fig.subplots_adjust(left=0.085, right=0.995, bottom=0.175, top=0.845,
                         wspace=0.30)

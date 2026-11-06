@@ -61,7 +61,7 @@ def main():
     F.clean(a2)
     F.headroom(a2, top=0.80)
     a2.legend(loc="upper right", fontsize=9.5, labelspacing=0.22)
-    F.panel(a2, "b", "the apparent tension logged")
+    F.panel(a2, "b", "logged apparent tension")
 
     fig.subplots_adjust(left=0.08, right=0.995, bottom=0.19, top=0.85,
                         wspace=0.30)

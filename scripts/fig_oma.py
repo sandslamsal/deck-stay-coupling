@@ -85,7 +85,7 @@ def main():
     a2.set_ylim(0, 100)
     F.clean(a2)
     a2.legend(loc="lower left", fontsize=9.0, labelspacing=0.24, frameon=False)
-    F.panel(a2, "b", "dependence on the match tolerance")
+    F.panel(a2, "b", "dependence on match tolerance")
 
     fig.subplots_adjust(left=0.085, right=0.995, bottom=0.175, top=0.845,
                         wspace=0.32)
