@@ -66,7 +66,7 @@ def main():
     a1.set_ylim(-0.05, 1.30)
     F.clean(a1)
     a1.legend(loc="lower right", fontsize=9.0, labelspacing=0.22, frameon=False)
-    F.panel(a1, "a", "merged-peak displacement")
+    F.panel(a1, "a")
 
     # ---- (b) what it costs on the example bridge --------------------------
     m = pd.read_csv(os.path.join(DATA, "merged.csv"))
@@ -87,7 +87,7 @@ def main():
     F.clean(a2)
     F.headroom(a2, top=0.42)
     a2.legend(loc="upper right", fontsize=9.0, labelspacing=0.22, frameon=False)
-    F.panel(a2, "b", "resulting tension error")
+    F.panel(a2, "b")
 
     fig.subplots_adjust(left=0.085, right=0.995, bottom=0.175, top=0.845,
                         wspace=0.30)

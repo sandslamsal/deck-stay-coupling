@@ -57,7 +57,7 @@ def main():
     F.headroom(ax1, top=0.62)
     ax1.legend(loc="upper right", fontsize=9.6, labelspacing=0.22,
                borderaxespad=0.15)
-    F.panel(ax1, "a", "noise-free records")
+    F.panel(ax1, "a")
 
     # ---- (b) RMSE under noise -------------------------------------------
     noisy = main9[main9.rep >= 0]
@@ -89,7 +89,7 @@ def main():
     F.clean(ax2)
     ax2.legend(loc="upper left", fontsize=9.6, labelspacing=0.22,
                borderaxespad=0.15)
-    F.panel(ax2, "b", "under measurement noise")
+    F.panel(ax2, "b")
 
     fig.subplots_adjust(left=0.075, right=0.995, bottom=0.185, top=0.85,
                         wspace=0.30)

@@ -64,7 +64,7 @@ def main():
                label="uncoupled deck")],
         loc="lower right", fontsize=F.FS_SMALL, labelspacing=0.22,
         borderaxespad=0.15)
-    F.panel(ax1, "a", "veering of frequency loci")
+    F.panel(ax1, "a")
 
     # ---- (b) character exchange -----------------------------------------
     ax2.plot(br.d, br.lower, label="lower branch",
@@ -81,7 +81,7 @@ def main():
     ax2.set_xticks([-0.2, -0.1, 0.0, 0.1])
     ax2.legend(loc="upper right", fontsize=F.FS_SMALL, labelspacing=0.22,
                borderaxespad=0.15)
-    F.panel(ax2, "b", "exchange of character")
+    F.panel(ax2, "b")
 
     # ---- (c) the consequence --------------------------------------------
     ax3.plot(br.d, 100 * br.eps.abs(), label="coupled model",
@@ -98,7 +98,7 @@ def main():
     ax3.set_xticks([-0.2, -0.1, 0.0, 0.1])
     ax3.legend(loc="upper right", fontsize=F.FS_SMALL, labelspacing=0.22,
                borderaxespad=0.15)
-    F.panel(ax3, "c", "resulting error")
+    F.panel(ax3, "c")
 
     fig.subplots_adjust(left=0.072, right=0.995, bottom=0.185, top=0.86,
                         wspace=0.36)

@@ -62,7 +62,7 @@ def main():
     F.clean(a1)
     F.headroom(a1, top=0.34)
     a1.legend(loc="upper left", fontsize=9.0, labelspacing=0.24, frameon=False)
-    F.panel(a1, "a", "error by reading method")
+    F.panel(a1, "a")
     # Dashed marker at zeta = 0.5 %: above it the spectrum shows one peak and
     # the trace rule cannot be applied.
     y0 = a1.get_ylim()[0]
@@ -85,7 +85,7 @@ def main():
     a2.set_ylim(0, 100)
     F.clean(a2)
     a2.legend(loc="lower left", fontsize=9.0, labelspacing=0.24, frameon=False)
-    F.panel(a2, "b", "dependence on match tolerance")
+    F.panel(a2, "b")
 
     fig.subplots_adjust(left=0.085, right=0.995, bottom=0.175, top=0.845,
                         wspace=0.32)

@@ -48,7 +48,7 @@ def main():
     ax1.set_ylabel(r"tension error $\varepsilon$  (%)")
     F.clean(ax1)
     ax1.legend(loc="upper right", fontsize=F.FS_LEGEND)
-    F.panel(ax1, "a", "closed form")
+    F.panel(ax1, "a")
 
     # ---- (b) the collapse ------------------------------------------------
     for i, key in enumerate(F.ORDERS, start=1):
@@ -67,7 +67,7 @@ def main():
     F.clean(ax2)
     ax2.legend(loc="upper left", fontsize=F.FS_SMALL, ncol=1,
                labelspacing=0.22, borderaxespad=0.1)
-    F.panel(ax2, "b", "parametric study")
+    F.panel(ax2, "b")
 
     # ---- (c) the criterion ----------------------------------------------
     mu = np.logspace(-4, -1, 500)
@@ -88,7 +88,7 @@ def main():
     ax3.legend(loc="upper left", fontsize=F.FS_SMALL, labelspacing=0.22,
                borderaxespad=0.1)
     # curves are for theta = 35 deg and n = 1
-    F.panel(ax3, "c", "screening criterion")
+    F.panel(ax3, "c")
 
     fig.subplots_adjust(left=0.075, right=0.995, bottom=0.19, top=0.86,
                         wspace=0.36)

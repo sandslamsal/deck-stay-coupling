@@ -54,14 +54,14 @@ def main():
     F.clean(a1)
     F.headroom(a1, top=0.75)
     a1.legend(loc="upper right", fontsize=9.5, labelspacing=0.22)
-    F.panel(a1, "a", "seasonal migration of detuning")
+    F.panel(a1, "a")
 
     a2.set_xlabel("time  (years)")
     a2.set_ylabel(r"tension change  $\Delta T/T$  (%)")
     F.clean(a2)
     F.headroom(a2, top=0.80)
     a2.legend(loc="upper right", fontsize=9.5, labelspacing=0.22)
-    F.panel(a2, "b", "logged apparent tension")
+    F.panel(a2, "b")
 
     fig.subplots_adjust(left=0.08, right=0.995, bottom=0.19, top=0.85,
                         wspace=0.30)

@@ -174,21 +174,41 @@ def apply(**overrides):
         plt.rcParams.update(overrides)
 
 
-SPACE_EM = 0.278   # word space of Arial and Helvetica, in em
+PANEL_X, PANEL_Y = 0.025, 0.975   # top left, just right of the y-axis (axes fraction)
 
 
-def panel(ax, letter, title='', dy=1.03):
-    """Panel heading outside the axes: letter and title both bold, on one
-    baseline, one word space apart."""
-    from matplotlib.offsetbox import AnnotationBbox, HPacker, TextArea
-    parts = [TextArea(letter, textprops=dict(fontsize=FS_PANEL, fontweight='bold'))]
-    if title:
-        parts.append(TextArea(title, textprops=dict(fontsize=FS_LABEL, fontweight='bold',
-                                                    color='0.15')))
-    head = HPacker(children=parts, align='baseline', pad=0, sep=SPACE_EM * FS_LABEL)
-    ax.add_artist(AnnotationBbox(head, (-0.005, dy), xycoords='axes fraction',
-                                 box_alignment=(0, 0), frameon=False, pad=0,
-                                 annotation_clip=False))
+CORNERS = {'upper left': (PANEL_X, PANEL_Y, 'left', 'top'),
+           'upper right': (1 - PANEL_X, PANEL_Y, 'right', 'top'),
+           'lower left': (PANEL_X, 1 - PANEL_Y, 'left', 'bottom'),
+           'lower right': (1 - PANEL_X, 1 - PANEL_Y, 'right', 'bottom')}
+
+
+def panel(ax, letter, where='upper left', legend='below'):
+    """Panel letter "(a)" inside the axes, by default at the top left just
+    right of the y-axis; `where` names another corner where the data leave
+    room. Call it after the legend: with the letter at the top left, a legend
+    in the upper left is moved clear of it, down below it (legend='below') or
+    across to its right (legend='right')."""
+    import matplotlib.transforms as mtrans
+    x, y, ha, va = CORNERS[where]
+    lt = ax.text(x, y, "(%s)" % letter, transform=ax.transAxes,
+                 fontsize=FS_PANEL, fontweight='bold', va=va, ha=ha, zorder=10)
+    leg = ax.get_legend()
+    if where != 'upper left' or leg is None or leg._loc not in (2,):   # 2 = 'upper left'
+        return
+    fig = ax.figure
+    # where the legend is anchored now, in axes coordinates
+    top_left = leg.get_bbox_to_anchor().get_points()[[0, 1], [0, 1]]
+    xa, ya = ax.transAxes.inverted().transform(top_left)
+    if legend == 'right':
+        r = fig.canvas.get_renderer()
+        dx = (lt.get_window_extent(r).x1 - ax.bbox.x0) / fig.dpi + 1.5 / 72.0
+        shift = mtrans.ScaledTranslation(dx, 0, fig.dpi_scale_trans)
+        xa = 0.0
+    else:
+        drop = (FS_PANEL * 1.15 + 1.5) / 72.0        # letter height and a small gap, in inches
+        shift = mtrans.ScaledTranslation(0, -drop, fig.dpi_scale_trans)
+    leg.set_bbox_to_anchor((xa, ya), transform=ax.transAxes + shift)
 
 
 def clean(ax, grid=False):

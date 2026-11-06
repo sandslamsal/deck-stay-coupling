@@ -57,7 +57,7 @@ def main():
     F.clean(a1)
     F.headroom(a1, top=0.30)
     a1.legend(loc="upper left", fontsize=9.3, labelspacing=0.22, frameon=False)
-    F.panel(a1, "a", "dynamic-tension coupling")
+    F.panel(a1, "a")
 
     # --- (b) sagged design set against the law with sag ---
     c = pd.read_csv(os.path.join(DATA, "campaign_sag.csv"))
@@ -90,7 +90,7 @@ def main():
     F.clean(a2)
     a2.legend(loc="upper left", bbox_to_anchor=(-0.04, 1.02), borderaxespad=0.2, fontsize=9.3,
               labelspacing=0.2, frameon=False, handletextpad=0.3, handlelength=1.2)
-    F.panel(a2, "b", "sagged design set")
+    F.panel(a2, "b", where="lower right")   # the lower-right triangle is empty
 
     # --- (c) pylon ---
     p = pd.read_csv(os.path.join(DATA, "pylon.csv"))
@@ -119,7 +119,7 @@ def main():
     handles += [Line2D([], [], color=F.color(k), ls="none", marker=F.ENTITY[k]["marker"], ms=5.0, label=l)
                 for _, _, k, l in sets]
     a3.legend(handles=handles, loc="upper right", fontsize=7.4, labelspacing=0.2, frameon=False)
-    F.panel(a3, "c", "pylon flexibility")
+    F.panel(a3, "c")
 
     fig.subplots_adjust(left=0.065, right=0.995, bottom=0.19, top=0.845, wspace=0.42)
     os.makedirs(OUT, exist_ok=True)
