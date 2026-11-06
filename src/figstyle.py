@@ -174,15 +174,21 @@ def apply(**overrides):
         plt.rcParams.update(overrides)
 
 
+SPACE_EM = 0.278   # word space of Arial and Helvetica, in em
+
+
 def panel(ax, letter, title='', dy=1.03):
-    """Panel heading outside the axes: letter and title both bold."""
-    ax.text(-0.005, dy, letter, transform=ax.transAxes, fontsize=FS_PANEL,
-            fontweight='bold', va='bottom', ha='left')
+    """Panel heading outside the axes: letter and title both bold, on one
+    baseline, one word space apart."""
+    from matplotlib.offsetbox import AnnotationBbox, HPacker, TextArea
+    parts = [TextArea(letter, textprops=dict(fontsize=FS_PANEL, fontweight='bold'))]
     if title:
-        ax.annotate(title, xy=(-0.005, dy), xycoords='axes fraction',
-                    xytext=(16, 1.2), textcoords='offset points',
-                    fontsize=FS_LABEL, fontweight='bold',
-                    va='bottom', ha='left', color='0.15')
+        parts.append(TextArea(title, textprops=dict(fontsize=FS_LABEL, fontweight='bold',
+                                                    color='0.15')))
+    head = HPacker(children=parts, align='baseline', pad=0, sep=SPACE_EM * FS_LABEL)
+    ax.add_artist(AnnotationBbox(head, (-0.005, dy), xycoords='axes fraction',
+                                 box_alignment=(0, 0), frameon=False, pad=0,
+                                 annotation_clip=False))
 
 
 def clean(ax, grid=False):

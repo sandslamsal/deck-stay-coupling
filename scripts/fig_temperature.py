@@ -54,7 +54,7 @@ def main():
     F.clean(a1)
     F.headroom(a1, top=0.75)
     a1.legend(loc="upper right", fontsize=9.5, labelspacing=0.22)
-    F.panel(a1, "a", "seasonal migration of the detuning")
+    F.panel(a1, "a", "seasonal migration of detuning")
 
     a2.set_xlabel("time  (years)")
     a2.set_ylabel(r"tension change  $\Delta T/T$  (%)")
